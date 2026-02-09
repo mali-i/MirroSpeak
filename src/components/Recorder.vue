@@ -1,5 +1,9 @@
 <template>
   <div class="recorder">
+    <div class="recorder-info">
+      <span class="recorder-title">New Recording</span>
+      <span class="recorder-path">{{ saveDirectory }}</span>
+    </div>
     <div class="main-layout">
       <div class="video-container">
         <video ref="videoPreview" autoplay muted playsinline></video>
@@ -223,6 +227,27 @@ onUnmounted(() => {
   width: 100%;
   max-width: 1000px;
   margin: 0 auto;
+}
+
+.recorder-info {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.recorder-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.recorder-path {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  font-family: monospace;
 }
 
 .main-layout {

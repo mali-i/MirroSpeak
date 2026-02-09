@@ -30,20 +30,7 @@
     </aside>
 
     <div class="main-wrapper">
-      <header class="top-bar" v-if="currentView === 'record'">
-        <div class="view-title">
-          <h2>{{ viewTitle }}</h2>
-        </div>
-        <div class="settings" v-if="currentView !== 'settings'">
-          <div class="path-display" :title="saveDirectory">
-              <span class="label">Storage:</span>
-              <span class="value">{{ saveDirectory || 'Not selected' }}</span>
-          </div>
-          <button @click="selectDirectory" class="btn-secondary">Change Folder</button>
-        </div>
-      </header>
-      
-      <main class="content-area" :class="{ 'no-top-bar': currentView !== 'record' }">
+      <main class="content-area">
         <KeepAlive>
           <Recorder 
             v-if="currentView === 'record'" 
@@ -75,23 +62,6 @@ import Settings from './components/Settings.vue';
 const saveDirectory = ref('');
 const galleryRef = ref(null);
 const currentView = ref('record');
-
-const viewTitle = computed(() => {
-  switch (currentView.value) {
-    case 'record': return 'New Recording';
-    case 'gallery': return 'Video Gallery';
-    case 'settings': return 'Settings';
-    default: return 'MirroSpeak';
-  }
-});
-
-const selectDirectory = async () => {
-  const path = await window.electronAPI.selectDirectory();
-  if (path) {
-    saveDirectory.value = path;
-    await window.electronAPI.setConfig('saveDirectory', path);
-  }
-};
 
 const onVideoSaved = () => {
     // Optional: Switch to gallery view after saving, or just notify
