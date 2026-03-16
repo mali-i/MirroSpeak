@@ -11,9 +11,18 @@ module.exports = {
       NSMicrophoneUsageDescription: 'Application needs access to the microphone for audio recording.',
       NSCameraUseContinuityCameraDeviceType: true
     },
-    osxSign: {
-      identity: '-',
-    },
+      osxSign: {
+        identity: process.env.APPLE_IDENTITY || process.env.APPLE_CERTIFICATE_IDENTITY,
+        hardenedRuntime: true,
+        entitlements: 'entitlements.plist',
+        'entitlements-inherit': 'entitlements.plist',
+      },
+      osxNotarize: process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID ? {
+        appleId: process.env.APPLE_ID,
+        appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+        teamId: process.env.APPLE_TEAM_ID,
+        appBundleId: 'cn.com.mirrospeak',
+      } : undefined,
   },
   rebuildConfig: {},
   makers: [
