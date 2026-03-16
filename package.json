@@ -1,7 +1,7 @@
 {
   "name": "mirrospeak",
   "productName": "MirroSpeak",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "My Electron application description",
   "main": ".vite/build/main.js",
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": {
-    "name": "mali-i",
+    "name": "algernon",
     "email": "hello_mali_i@163.com"
   },
   "repository": {
