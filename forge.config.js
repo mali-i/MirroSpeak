@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
@@ -11,18 +12,18 @@ module.exports = {
       NSMicrophoneUsageDescription: 'Application needs access to the microphone for audio recording.',
       NSCameraUseContinuityCameraDeviceType: true
     },
-      osxSign: {
-        identity: process.env.APPLE_IDENTITY || process.env.APPLE_CERTIFICATE_IDENTITY,
-        hardenedRuntime: true,
-        entitlements: 'entitlements.plist',
-        'entitlements-inherit': 'entitlements.plist',
-      },
-      osxNotarize: process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID ? {
-        appleId: process.env.APPLE_ID,
-        appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
-        teamId: process.env.APPLE_TEAM_ID,
-        appBundleId: 'cn.com.mirrospeak',
-      } : undefined,
+    osxSign: process.env.APPLE_CERTIFICATE_IDENTITY ? {
+      identity: process.env.APPLE_CERTIFICATE_IDENTITY,
+      hardenedRuntime: true,
+      entitlements: 'entitlements.plist',
+      'entitlements-inherit': 'entitlements.plist',
+    } : undefined,
+    osxNotarize: process.env.APPLE_CERTIFICATE_IDENTITY && process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID ? {
+      appleId: process.env.APPLE_ID,
+      appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+      teamId: process.env.APPLE_TEAM_ID,
+      appBundleId: 'cn.com.mirrospeak',
+    } : undefined,
   },
   rebuildConfig: {},
   makers: [
