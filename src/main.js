@@ -12,6 +12,8 @@ if (started) {
   app.quit();
 }
 
+app.setName('MirroSpeak');
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'media',

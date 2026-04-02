@@ -10,6 +10,8 @@ module.exports = {
     appBundleId: 'cn.com.mirrospeak',
     icon: path.join(__dirname, 'assets', 'icons', 'icon'),
     extendInfo: {
+      CFBundleName: 'MirroSpeak',
+      CFBundleDisplayName: 'MirroSpeak',
       NSCameraUsageDescription: 'Application needs access to the camera for video recording.',
       NSMicrophoneUsageDescription: 'Application needs access to the microphone for audio recording.',
       NSCameraUseContinuityCameraDeviceType: true

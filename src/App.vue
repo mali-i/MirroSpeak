@@ -2,7 +2,10 @@
   <div class="app-layout">
     <aside class="sidebar">
       <div class="brand">
-        <h1>🎙️ MirroSpeak</h1>
+        <h1>
+          <img :src="appIcon" alt="MirroSpeak" class="brand-icon" />
+          <span>MirroSpeak</span>
+        </h1>
       </div>
       <nav class="nav-menu">
         <button 
@@ -34,7 +37,7 @@
         <KeepAlive>
           <Recorder 
             v-if="currentView === 'record'" 
-            class="view-container"
+            class="view-container record-view"
             :saveDirectory="saveDirectory" 
             @video-saved="onVideoSaved" 
           />
@@ -58,6 +61,7 @@ import { ref, onMounted, computed } from 'vue';
 import Recorder from './components/Recorder.vue';
 import VideoGallery from './components/VideoGallery.vue';
 import Settings from './components/Settings.vue';
+import appIcon from '../assets/icons/icon.png';
 
 const saveDirectory = ref('');
 const galleryRef = ref(null);
@@ -124,6 +128,14 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .nav-menu {
@@ -230,6 +242,8 @@ body {
 
 .content-area {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 30px;
   overflow-y: auto;
   background-color: #f5f7fa;
@@ -239,6 +253,11 @@ body {
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
+}
+
+.record-view {
+  flex: 1;
+  display: flex;
 }
 
 @media (max-width: 768px) {

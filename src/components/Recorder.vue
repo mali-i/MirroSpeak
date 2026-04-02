@@ -4,35 +4,37 @@
       <span class="recorder-title">New Recording</span>
       <span class="recorder-path">{{ saveDirectory }}</span>
     </div>
-    <div class="main-layout">
-      <div class="video-container">
-        <video ref="videoPreview" autoplay muted playsinline></video>
-        <div v-if="isRecording" class="recording-indicator">🔴 Recording</div>
-        <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
+    <div class="recorder-stage">
+      <div class="main-layout">
+        <div class="video-container">
+          <video ref="videoPreview" autoplay muted playsinline></video>
+          <div v-if="isRecording" class="recording-indicator">🔴 Recording</div>
+          <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
+        </div>
+        
+        <!-- Outline Panel -->
+        <!-- <OutlinePanel /> -->
       </div>
-      
-      <!-- Outline Panel -->
-      <!-- <OutlinePanel /> -->
-    </div>
 
-    <div class="controls">
-      <button 
-        v-if="!isRecording" 
-        @click="startRecording" 
-        :disabled="!stream" 
-        class="btn-start"
-      >
-        <span class="btn-icon">🎥</span>
-        Start Recording
-      </button>
-      <button 
-        v-else 
-        @click="stopRecording" 
-        class="btn-stop"
-      >
-        <span class="btn-icon">⏹</span>
-        Stop Recording
-      </button>
+      <div class="controls">
+        <button 
+          v-if="!isRecording" 
+          @click="startRecording" 
+          :disabled="!stream" 
+          class="btn-start"
+        >
+          <span class="btn-icon">🎥</span>
+          Start Recording
+        </button>
+        <button 
+          v-else 
+          @click="stopRecording" 
+          class="btn-stop"
+        >
+          <span class="btn-icon">⏹</span>
+          Stop Recording
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -225,15 +227,25 @@ onUnmounted(() => {
   align-items: center;
   gap: 1.5rem;
   width: 100%;
+  min-height: 100%;
   max-width: 1000px;
   margin: 0 auto;
+}
+
+.recorder-stage {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
 }
 
 .recorder-info {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  margin-bottom: 24px;
   width: 100%;
   justify-content: flex-start;
 }
