@@ -36,6 +36,38 @@ protocol.registerSchemesAsPrivileged([
 
 const store = new Store();
 
+const resolveMacIconPath = () => {
+  const appPath = app.getAppPath();
+  const candidates = [
+    path.join(appPath, 'assets', 'icons', 'icon.png'),
+    path.join(appPath, 'src', 'icon.png'),
+    path.join(process.cwd(), 'assets', 'icons', 'icon.png'),
+    path.join(process.cwd(), 'src', 'icon.png'),
+  ];
+
+  return candidates.find(candidate => fs.existsSync(candidate));
+};
+
+const setMacAppIcon = () => {
+  if (process.platform !== 'darwin' || !app.dock) {
+    return;
+  }
+
+  const iconPath = resolveMacIconPath();
+  if (!iconPath) {
+    console.warn('Custom app icon not found for macOS Dock.');
+    return;
+  }
+
+  const icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    console.warn(`Failed to load macOS Dock icon from ${iconPath}.`);
+    return;
+  }
+
+  app.dock.setIcon(icon);
+};
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -120,6 +152,8 @@ ipcMain.handle('video:list', async (event, directory) => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  setMacAppIcon();
+
   // 工业级 CORS 解决方案：拦截并修改响应头
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({

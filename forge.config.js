@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('node:path');
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
@@ -7,6 +8,7 @@ module.exports = {
     asar: true,
     executableName: 'MirroSpeak',
     appBundleId: 'cn.com.mirrospeak',
+    icon: path.join(__dirname, 'assets', 'icons', 'icon'),
     extendInfo: {
       NSCameraUsageDescription: 'Application needs access to the camera for video recording.',
       NSMicrophoneUsageDescription: 'Application needs access to the microphone for audio recording.',
