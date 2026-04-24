@@ -7,7 +7,11 @@ const isMasBuild = process.argv.includes('--platform=mas') || process.env.FORGE_
 const signingIdentity = isMasBuild
   ? process.env.APPLE_MAS_CERTIFICATE_IDENTITY
   : process.env.APPLE_CERTIFICATE_IDENTITY;
-const provisioningProfile = isMasBuild ? process.env.APPLE_MAS_PROVISIONING_PROFILE : undefined;
+const provisioningProfile = isMasBuild && process.env.APPLE_MAS_PROVISIONING_PROFILE
+  ? path.isAbsolute(process.env.APPLE_MAS_PROVISIONING_PROFILE)
+    ? process.env.APPLE_MAS_PROVISIONING_PROFILE
+    : path.join(__dirname, process.env.APPLE_MAS_PROVISIONING_PROFILE)
+  : undefined;
 const entitlementsFile = isMasBuild ? 'entitlements.mas.plist' : 'entitlements.plist';
 const entitlementsInheritFile = isMasBuild ? 'entitlements.mas.inherit.plist' : 'entitlements.plist';
 

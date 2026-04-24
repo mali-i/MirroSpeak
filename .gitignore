@@ -127,6 +127,10 @@ ehthumbs.db
 # MirroSpeak logs
 # mirrospeak_logs/
 
+# Local Apple signing assets
+signing/
+*.provisionprofile
+
 
 .llm-chat-history/*
 
