@@ -7,7 +7,11 @@
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
+    "package:dmg": "electron-forge package --platform=darwin",
+    "package:mas": "FORGE_PLATFORM=mas electron-forge package --platform=mas",
     "make": "electron-forge make",
+    "make:dmg": "electron-forge make --platform=darwin --targets=@electron-forge/maker-dmg",
+    "make:mas": "FORGE_PLATFORM=mas electron-forge make --platform=mas --targets=@electron-forge/maker-pkg",
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\""
   },
@@ -25,6 +29,7 @@
     "@electron-forge/cli": "^7.10.2",
     "@electron-forge/maker-deb": "^7.10.2",
     "@electron-forge/maker-dmg": "^7.11.1",
+    "@electron-forge/maker-pkg": "^7.11.1",
     "@electron-forge/maker-rpm": "^7.10.2",
     "@electron-forge/maker-squirrel": "^7.10.2",
     "@electron-forge/maker-zip": "^7.10.2",
