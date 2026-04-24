@@ -37,6 +37,73 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const store = new Store();
+const saveDirectoryAccessKey = 'saveDirectoryAccess';
+
+const normalizeDirectoryAccess = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    return {
+      path: value,
+      bookmark: '',
+    };
+  }
+
+  if (typeof value.path !== 'string' || value.path.length === 0) {
+    return null;
+  }
+
+  return {
+    path: value.path,
+    bookmark: typeof value.bookmark === 'string' ? value.bookmark : '',
+  };
+};
+
+const getStoredDirectoryAccess = () => normalizeDirectoryAccess(store.get(saveDirectoryAccessKey));
+
+const getDirectoryAccessForPath = (targetPath) => {
+  const directoryAccess = getStoredDirectoryAccess();
+  if (!directoryAccess) {
+    return null;
+  }
+
+  const resolvedTargetPath = path.resolve(targetPath);
+  const resolvedDirectoryPath = path.resolve(directoryAccess.path);
+  if (
+    resolvedTargetPath !== resolvedDirectoryPath &&
+    !resolvedTargetPath.startsWith(`${resolvedDirectoryPath}${path.sep}`)
+  ) {
+    return null;
+  }
+
+  return directoryAccess;
+};
+
+const startScopedAccess = (bookmark) => {
+  if (!process.mas || !bookmark) {
+    return () => {};
+  }
+
+  try {
+    return app.startAccessingSecurityScopedResource(bookmark);
+  } catch (error) {
+    console.error('Failed to start security scoped access:', error);
+    return () => {};
+  }
+};
+
+const withDirectoryAccess = async (targetPath, operation) => {
+  const directoryAccess = getDirectoryAccessForPath(targetPath);
+  const stopAccess = startScopedAccess(directoryAccess?.bookmark);
+
+  try {
+    return await operation();
+  } finally {
+    stopAccess();
+  }
+};
 
 const resolveMacIconPath = () => {
   const appPath = app.getAppPath();
@@ -93,14 +160,19 @@ const createWindow = () => {
 
 // IPC Handlers
 ipcMain.handle('dialog:openDirectory', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
+  const { canceled, filePaths, bookmarks } = await dialog.showOpenDialog({
     properties: ['openDirectory'],
+    securityScopedBookmarks: process.mas,
   });
-  if (canceled) {
-    return;
-  } else {
-    return filePaths[0];
+
+  if (canceled || filePaths.length === 0) {
+    return null;
   }
+
+  return {
+    path: filePaths[0],
+    bookmark: bookmarks?.[0] ?? '',
+  };
 });
 
 ipcMain.handle('config:get', (event, key) => {
@@ -114,7 +186,9 @@ ipcMain.handle('config:set', (event, key, value) => {
 ipcMain.handle('video:save', async (event, { buffer, filename, directory }) => {
   try {
     const filePath = path.join(directory, filename);
-    await fs.promises.writeFile(filePath, Buffer.from(buffer));
+    await withDirectoryAccess(filePath, async () => {
+      await fs.promises.writeFile(filePath, Buffer.from(buffer));
+    });
     return { success: true, filePath };
   } catch (error) {
     console.error('Failed to save video:', error);
@@ -124,26 +198,28 @@ ipcMain.handle('video:save', async (event, { buffer, filename, directory }) => {
 
 ipcMain.handle('video:list', async (event, directory) => {
   try {
-    if (!fs.existsSync(directory)) return [];
-    const files = await fs.promises.readdir(directory);
-    const videoFiles = files.filter(file => {
-      // Filter out hidden files (starting with . or ._) and only include video files
-      if (file.startsWith('.') || file.startsWith('._')) return false;
-      return file.endsWith('.webm') || file.endsWith('.mp4');
+    return await withDirectoryAccess(directory, async () => {
+      if (!fs.existsSync(directory)) return [];
+      const files = await fs.promises.readdir(directory);
+      const videoFiles = files.filter(file => {
+        // Filter out hidden files (starting with . or ._) and only include video files
+        if (file.startsWith('.') || file.startsWith('._')) return false;
+        return file.endsWith('.webm') || file.endsWith('.mp4');
+      });
+
+      const videos = await Promise.all(videoFiles.map(async (file) => {
+          const filePath = path.join(directory, file);
+          const stats = await fs.promises.stat(filePath);
+          return {
+              name: file,
+              path: filePath,
+              createdAt: stats.birthtime,
+              size: stats.size
+          };
+      }));
+
+      return videos.sort((a, b) => b.createdAt - a.createdAt);
     });
-    
-    const videos = await Promise.all(videoFiles.map(async (file) => {
-        const filePath = path.join(directory, file);
-        const stats = await fs.promises.stat(filePath);
-        return {
-            name: file,
-            path: filePath,
-            createdAt: stats.birthtime,
-            size: stats.size
-        };
-    }));
-    
-    return videos.sort((a, b) => b.createdAt - a.createdAt);
   } catch (error) {
     console.error('Failed to list videos:', error);
     return [];
@@ -190,49 +266,51 @@ app.whenReady().then(async () => {
     try {
       const parsedUrl = new URL(request.url);
       const decodedPath = decodeURIComponent(parsedUrl.pathname);
-      
-      const hash = crypto.createHash('md5').update(decodedPath).digest('hex');
-      const thumbPath = path.join(thumbnailsDir, `${hash}.jpg`);
 
-      // Check if cached thumbnail exists
-      try {
-        await fs.promises.access(thumbPath);
-        return net.fetch(url.pathToFileURL(thumbPath).toString());
-      } catch {
-        // Cache doesn't exist, need to generate
-      }
+      return await withDirectoryAccess(decodedPath, async () => {
+        const hash = crypto.createHash('md5').update(decodedPath).digest('hex');
+        const thumbPath = path.join(thumbnailsDir, `${hash}.jpg`);
 
-      // Try to generate thumbnail using native method
-      try {
-        const image = await nativeImage.createThumbnailFromPath(decodedPath, { width: 320, height: 180 });
-        if (!image.isEmpty()) {
-          const buffer = image.toJPEG(80);
-          await fs.promises.writeFile(thumbPath, buffer);
+        // Check if cached thumbnail exists
+        try {
+          await fs.promises.access(thumbPath);
           return net.fetch(url.pathToFileURL(thumbPath).toString());
+        } catch {
+          // Cache doesn't exist, need to generate
         }
-      } catch (err) {
-        console.log('Native thumbnail generation failed, will use fallback:', err.message);
-      }
 
-      // Fallback: Return a placeholder image for webm and unsupported formats
-      const ext = path.extname(decodedPath).toLowerCase();
-      if (ext === '.webm') {
-        // For webm, create a simple placeholder with file name
-        const placeholderSvg = `<svg width="320" height="180" xmlns="http://www.w3.org/2000/svg">
-          <rect width="320" height="180" fill="#1a1a1a"/>
-          <text x="160" y="80" font-family="Arial" font-size="48" fill="#ffffff" text-anchor="middle">WebM</text>
-          <text x="160" y="110" font-family="Arial" font-size="14" fill="#888888" text-anchor="middle">${path.basename(decodedPath)}</text>
-        </svg>`;
-        
-        return new Response(placeholderSvg, {
-          headers: {
-            'Content-Type': 'image/svg+xml',
+        // Try to generate thumbnail using native method
+        try {
+          const image = await nativeImage.createThumbnailFromPath(decodedPath, { width: 320, height: 180 });
+          if (!image.isEmpty()) {
+            const buffer = image.toJPEG(80);
+            await fs.promises.writeFile(thumbPath, buffer);
+            return net.fetch(url.pathToFileURL(thumbPath).toString());
           }
-        });
-      }
+        } catch (err) {
+          console.log('Native thumbnail generation failed, will use fallback:', err.message);
+        }
 
-      // Generic fallback
-      return new Response('Error generating thumbnail', { status: 500 });
+        // Fallback: Return a placeholder image for webm and unsupported formats
+        const ext = path.extname(decodedPath).toLowerCase();
+        if (ext === '.webm') {
+          // For webm, create a simple placeholder with file name
+          const placeholderSvg = `<svg width="320" height="180" xmlns="http://www.w3.org/2000/svg">
+            <rect width="320" height="180" fill="#1a1a1a"/>
+            <text x="160" y="80" font-family="Arial" font-size="48" fill="#ffffff" text-anchor="middle">WebM</text>
+            <text x="160" y="110" font-family="Arial" font-size="14" fill="#888888" text-anchor="middle">${path.basename(decodedPath)}</text>
+          </svg>`;
+
+          return new Response(placeholderSvg, {
+            headers: {
+              'Content-Type': 'image/svg+xml',
+            }
+          });
+        }
+
+        // Generic fallback
+        return new Response('Error generating thumbnail', { status: 500 });
+      });
     } catch (error) {
       console.error('Failed to generate thumbnail:', error);
       return new Response('Error generating thumbnail', { status: 500 });
@@ -251,36 +329,38 @@ app.whenReady().then(async () => {
     }
 
     try {
-      const stats = await fs.promises.stat(filePath);
-      const fileSize = stats.size;
-      const fileExt = path.extname(filePath).toLowerCase();
-      const mimeType = fileExt === '.webm' ? 'video/webm' : 'video/mp4';
-      
-      const range = request.headers.get('Range');
-      
-      if (range) {
-        const parts = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunksize = (end - start) + 1;
-        
-        const fileStream = fs.createReadStream(filePath, { start, end });
-        // Convert Node stream to Web stream for Response
-        const readableWebStream = Readable.toWeb(fileStream);
+      return await withDirectoryAccess(filePath, async () => {
+        const stats = await fs.promises.stat(filePath);
+        const fileSize = stats.size;
+        const fileExt = path.extname(filePath).toLowerCase();
+        const mimeType = fileExt === '.webm' ? 'video/webm' : 'video/mp4';
 
-        return new Response(readableWebStream, {
-          status: 206,
-          headers: {
-            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-            'Accept-Ranges': 'bytes',
-            'Content-Length': chunksize,
-            'Content-Type': mimeType
-          }
-        });
-      } else {
+        const range = request.headers.get('Range');
+
+        if (range) {
+          const parts = range.replace(/bytes=/, "").split("-");
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+          const chunksize = (end - start) + 1;
+
+          const fileStream = fs.createReadStream(filePath, { start, end });
+          // Convert Node stream to Web stream for Response
+          const readableWebStream = Readable.toWeb(fileStream);
+
+          return new Response(readableWebStream, {
+            status: 206,
+            headers: {
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': chunksize,
+              'Content-Type': mimeType
+            }
+          });
+        }
+
         const fileStream = fs.createReadStream(filePath);
         const readableWebStream = Readable.toWeb(fileStream);
-        
+
         return new Response(readableWebStream, {
           status: 200,
           headers: {
@@ -288,7 +368,7 @@ app.whenReady().then(async () => {
             'Content-Type': mimeType
           }
         });
-      }
+      });
     } catch (error) {
       console.error('Media protocol error:', error);
       return new Response('File not found or access denied', { status: 404 });

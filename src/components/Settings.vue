@@ -79,7 +79,7 @@ const props = defineProps({
   saveDirectory: String
 });
 
-const emit = defineEmits(['update:saveDirectory']);
+const emit = defineEmits(['update:saveDirectoryAccess']);
 
 const videoDevices = ref([]);
 const audioDevices = ref([]);
@@ -93,10 +93,11 @@ const statusMessage = ref('');
 const statusType = ref('');
 
 const selectDirectory = async () => {
-    const path = await window.electronAPI.selectDirectory();
-    if (path) {
-        emit('update:saveDirectory', path);
-        await window.electronAPI.setConfig('saveDirectory', path);
+  const directoryAccess = await window.electronAPI.selectDirectory();
+  if (directoryAccess?.path) {
+    emit('update:saveDirectoryAccess', directoryAccess);
+    await window.electronAPI.setConfig('saveDirectoryAccess', directoryAccess);
+    await window.electronAPI.setConfig('saveDirectory', directoryAccess.path);
     }
 };
 

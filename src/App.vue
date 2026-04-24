@@ -48,7 +48,7 @@
         <div v-if="currentView === 'settings'" class="view-container">
           <Settings 
             :saveDirectory="saveDirectory" 
-            @update:saveDirectory="val => saveDirectory = val"
+            @update:saveDirectoryAccess="updateSaveDirectoryAccess"
           />
         </div>
       </main>
@@ -63,9 +63,10 @@ import VideoGallery from './components/VideoGallery.vue';
 import Settings from './components/Settings.vue';
 import appIcon from '../assets/icons/icon.png';
 
-const saveDirectory = ref('');
+const saveDirectoryAccess = ref(null);
 const galleryRef = ref(null);
 const currentView = ref('record');
+const saveDirectory = computed(() => saveDirectoryAccess.value?.path || '');
 
 const onVideoSaved = () => {
     // Optional: Switch to gallery view after saving, or just notify
@@ -82,10 +83,20 @@ const refreshGallery = () => {
     }
 };
 
+const updateSaveDirectoryAccess = (value) => {
+  saveDirectoryAccess.value = value;
+};
+
 onMounted(async () => {
+  const savedAccess = await window.electronAPI.getConfig('saveDirectoryAccess');
+  if (savedAccess?.path) {
+    saveDirectoryAccess.value = savedAccess;
+    return;
+  }
+
   const savedPath = await window.electronAPI.getConfig('saveDirectory');
   if (savedPath) {
-    saveDirectory.value = savedPath;
+    saveDirectoryAccess.value = { path: savedPath, bookmark: '' };
   }
 });
 </script>
