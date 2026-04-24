@@ -37,3 +37,14 @@ npm run start
 ```bash
 npm run make
 ```
+
+### macOS 分发构建
+
+```bash
+npm run make:dmg
+npm run make:mas
+```
+
+- `dmg` 输出目录：`out/dmg/make/`
+- `mas pkg` 输出目录：`out/mas/make/`
+- 对应的中间 `.app` 打包目录分别位于：`out/dmg/`、`out/mas/`
