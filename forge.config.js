@@ -17,8 +17,8 @@ const provisioningProfile = isMasBuild && process.env.APPLE_MAS_PROVISIONING_PRO
     ? process.env.APPLE_MAS_PROVISIONING_PROFILE
     : path.join(__dirname, process.env.APPLE_MAS_PROVISIONING_PROFILE)
   : undefined;
-const entitlementsFile = isMasBuild ? 'entitlements.mas.plist' : 'entitlements.plist';
-const entitlementsInheritFile = isMasBuild ? 'entitlements.mas.inherit.plist' : 'entitlements.plist';
+const entitlementsFile = path.resolve(__dirname, isMasBuild ? 'entitlements.mas.plist' : 'entitlements.plist');
+const entitlementsInheritFile = path.resolve(__dirname, isMasBuild ? 'entitlements.mas.inherit.plist' : 'entitlements.plist');
 
 module.exports = {
   outDir: forgeOutDir,
@@ -39,7 +39,7 @@ module.exports = {
       hardenedRuntime: !isMasBuild,
       provisioningProfile,
       entitlements: entitlementsFile,
-      'entitlements-inherit': entitlementsInheritFile,
+      entitlementsInherit: entitlementsInheritFile,
     } : undefined,
     osxNotarize: !isMasBuild && process.env.APPLE_CERTIFICATE_IDENTITY && process.env.APPLE_ID && process.env.APPLE_APP_SPECIFIC_PASSWORD && process.env.APPLE_TEAM_ID ? {
       appleId: process.env.APPLE_ID,
