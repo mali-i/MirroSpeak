@@ -54,3 +54,5 @@ npm run upload
 - `dmg` 输出目录：`out/dmg/make/`
 - `mas pkg` 输出目录：`out/mas/make/`
 - 对应的中间 `.app` 打包目录分别位于：`out/dmg/`、`out/mas/`
+- 使用 `Apple Distribution` 签名的 MAS `.app` 不能作为本地双击运行的测试对象；这类产物需要通过 App Store / TestFlight 重签与分发后再验证启动。
+- 如果需要在本机直接测试 MAS 签名行为，应改用 `Apple Development` 证书配合开发用 provisioning profile 重新签名。
