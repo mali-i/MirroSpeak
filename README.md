@@ -41,10 +41,16 @@ npm run make
 ### macOS 分发构建
 
 ```bash
+npm run package:app
+npm run package:app:mas
 npm run make:dmg
 npm run make:mas
+npm run upload
 ```
 
+- `package:app` / `package:app:mas` 只生成已签名的 `.app` 中间产物。
+- `upload` 会通过 `xcrun altool` 自动查找 `out/mas/make/` 下的 `.pkg` 并上传到 App Store Connect。
+- 如果 Apple ID 绑定了多个 provider，可额外设置环境变量 `APPLE_PROVIDER_PUBLIC_ID`。
 - `dmg` 输出目录：`out/dmg/make/`
 - `mas pkg` 输出目录：`out/mas/make/`
 - 对应的中间 `.app` 打包目录分别位于：`out/dmg/`、`out/mas/`

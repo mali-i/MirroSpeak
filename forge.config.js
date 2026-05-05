@@ -19,7 +19,7 @@ const provisioningProfile = isMasBuild && process.env.APPLE_MAS_PROVISIONING_PRO
     : path.join(__dirname, process.env.APPLE_MAS_PROVISIONING_PROFILE)
   : undefined;
 const entitlementsFile = path.resolve(__dirname, isMasBuild ? 'entitlements.mas.plist' : 'entitlements.plist');
-const entitlementsInheritFile = path.resolve(__dirname, isMasBuild ? 'entitlements.mas.inherit.plist' : 'entitlements.plist');
+const entitlementsInheritFile = path.resolve(__dirname, isMasBuild ? 'entitlements.mas.inherit.plist' : 'entitlements.inherit.plist');
 
 module.exports = {
   outDir: forgeOutDir,
