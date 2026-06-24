@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net, nativeImage, systemPreferences, session } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, nativeImage, systemPreferences, session, Menu } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import url from 'node:url';
@@ -38,6 +38,7 @@ protocol.registerSchemesAsPrivileged([
 
 const store = new Store();
 const saveDirectoryAccessKey = 'saveDirectoryAccess';
+let mainWindow;
 
 const normalizeDirectoryAccess = (value) => {
   if (!value) {
@@ -138,8 +139,14 @@ const setMacAppIcon = () => {
 };
 
 const createWindow = () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    return mainWindow;
+  }
+
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -154,8 +161,68 @@ const createWindow = () => {
     mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 
+  mainWindow.on('closed', () => {
+    mainWindow = undefined;
+  });
+
   // Open the DevTools.
   // mainWindow.webContents.openDevTools();
+
+  return mainWindow;
+};
+
+const showMainWindow = () => {
+  createWindow();
+};
+
+const createApplicationMenu = () => {
+  const template = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    { role: 'editMenu' },
+    {
+      label: 'Window',
+      role: 'windowMenu',
+      submenu: [
+        {
+          label: 'Open MirroSpeak',
+          accelerator: 'CmdOrCtrl+1',
+          click: showMainWindow,
+        },
+        { type: 'separator' },
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'front' },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+};
+
+const createMacDockMenu = () => {
+  if (process.platform !== 'darwin' || !app.dock) {
+    return;
+  }
+
+  app.dock.setMenu(Menu.buildFromTemplate([
+    {
+      label: 'Open MirroSpeak',
+      click: showMainWindow,
+    },
+  ]));
 };
 
 // IPC Handlers
@@ -231,6 +298,8 @@ ipcMain.handle('video:list', async (event, directory) => {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   setMacAppIcon();
+  createApplicationMenu();
+  createMacDockMenu();
 
   // 工业级 CORS 解决方案：拦截并修改响应头
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
