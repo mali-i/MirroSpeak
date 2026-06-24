@@ -11,7 +11,7 @@
     "package:app:mas": "FORGE_PLATFORM=mas FORGE_OUT_DIR=out/mas electron-forge package --platform=mas",
     "make": "electron-forge make",
     "make:dmg": "FORGE_OUT_DIR=out/dmg electron-forge make --platform=darwin --targets=@electron-forge/maker-dmg",
-    "make:mas": "FORGE_PLATFORM=mas FORGE_OUT_DIR=out/mas electron-forge make --platform=mas --targets=@electron-forge/maker-pkg",
+    "make:mas": "DEBUG=electron-osx-sign,electron-packager FORGE_PLATFORM=mas FORGE_OUT_DIR=out/mas electron-forge make --platform=mas --targets=@electron-forge/maker-pkg",
     "upload": "node scripts/upload-mas.js",
     "upload:mas": "npm run upload",
     "publish": "electron-forge publish",
