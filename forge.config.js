@@ -8,7 +8,7 @@ const platformFromArgs = platformArgIndex >= 0
 const forgePlatform = process.env.FORGE_PLATFORM || process.env.npm_config_platform || platformFromArgs;
 const isMasBuild = forgePlatform === 'mas';
 const forgeOutDir = process.env.FORGE_OUT_DIR;
-const buildVersion = process.env.APP_BUILD_NUMBER || '1';
+const buildVersion = process.env.APP_BUILD_NUMBER || '3';
 const signingIdentity = isMasBuild
   ? process.env.APPLE_MAS_CERTIFICATE_IDENTITY
   : process.env.APPLE_CERTIFICATE_IDENTITY;
