@@ -12,8 +12,7 @@
           <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
         </div>
         
-        <!-- Outline Panel -->
-        <!-- <OutlinePanel /> -->
+        <OutlinePanel :disabled="isRecording" />
       </div>
 
       <div class="controls">
@@ -42,7 +41,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, onActivated, onDeactivated, computed, watch } from 'vue';
 import dayjs from 'dayjs';
-// import OutlinePanel from './OutlinePanel.vue';
+import OutlinePanel from './OutlinePanel.vue';
 
 const props = defineProps({
   saveDirectory: String
@@ -228,7 +227,7 @@ onUnmounted(() => {
   gap: 1.5rem;
   width: 100%;
   min-height: 100%;
-  max-width: 1000px;
+  max-width: 1180px;
   margin: 0 auto;
 }
 
@@ -339,7 +338,7 @@ onUnmounted(() => {
   position: relative;
   flex: 1;
   min-width: 0; /* Allow shrinking below content size */
-  max-width: 640px;
+  max-width: 760px;
   background: #000;
   border-radius: 8px;
   overflow: hidden;
@@ -468,6 +467,15 @@ video {
 }
 
 @media (max-width: 600px) {
+    .main-layout {
+        flex-direction: column;
+    }
+
+    .video-container {
+        max-width: none;
+        width: 100%;
+    }
+
     .controls {
         display: flex;
         flex-direction: column;
