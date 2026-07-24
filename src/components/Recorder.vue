@@ -77,7 +77,7 @@ const isSaving = ref(false);
 const statusMessage = ref('');
 const statusType = ref('info');
 const filenamePrefix = ref('video');
-const isOutlineOpen = ref(true);
+const isOutlineOpen = ref(false);
 
 // Devices
 const selectedVideoDeviceId = ref('');
