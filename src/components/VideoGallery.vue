@@ -22,7 +22,7 @@
     <template v-else>
       <div
         v-if="viewMode === 'calendar'"
-        :class="['calendar-layout', { 'with-sidebar': displayedVideos.length > 1 }]"
+        :class="['calendar-layout', { 'with-sidebar': selectedDate }]"
       >
       <section class="calendar-view">
         <div v-for="month in calendarMonths" :key="month.key" class="calendar-month">
@@ -88,7 +88,7 @@
         </div>
       </section>
 
-      <aside v-if="displayedVideos.length > 1" class="calendar-sidebar">
+      <aside v-if="selectedDate" class="calendar-sidebar">
         <div class="calendar-sidebar-header">
           <div>
             <strong>{{ daySectionTitle }}</strong>
@@ -97,6 +97,9 @@
           <button type="button" aria-label="Close video sidebar" @click="closeCalendarSidebar">×</button>
         </div>
         <div class="calendar-sidebar-list">
+          <div v-if="displayedVideos.length === 0" class="calendar-sidebar-empty">
+            No videos recorded on this date.
+          </div>
           <article v-for="video in displayedVideos" :key="video.path" class="sidebar-video-item">
             <div
               class="sidebar-video-thumbnail"
@@ -613,6 +616,13 @@ defineExpose({ refresh: loadVideos });
     max-height: calc(100vh - 135px);
     padding: 10px;
     overflow-y: auto;
+}
+
+.calendar-sidebar-empty {
+    padding: 28px 12px;
+    color: #8a949d;
+    font-size: 0.85rem;
+    text-align: center;
 }
 
 .sidebar-video-item {
