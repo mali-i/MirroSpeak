@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveVideo: (data) => ipcRenderer.invoke('video:save', data),
   getVideos: (directory) => ipcRenderer.invoke('video:list', directory),
   renameVideo: (data) => ipcRenderer.invoke('video:rename', data),
+  deleteVideo: (data) => ipcRenderer.invoke('video:delete', data),
 });

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net, nativeImage, systemPreferences, session, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, nativeImage, systemPreferences, session, Menu, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import url from 'node:url';
@@ -363,6 +363,35 @@ ipcMain.handle('video:rename', async (event, { filePath, newName }) => {
     });
   } catch (error) {
     console.error('Failed to rename video:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('video:delete', async (event, { filePath }) => {
+  try {
+    if (typeof filePath !== 'string') {
+      throw new Error('Invalid delete request.');
+    }
+
+    const sourcePath = path.resolve(filePath);
+    if (!getDirectoryAccessForPath(sourcePath)) {
+      throw new Error('The video is outside the selected save directory.');
+    }
+    if (!['.webm', '.mp4'].includes(path.extname(sourcePath).toLowerCase())) {
+      throw new Error('Only video files can be deleted.');
+    }
+
+    await withDirectoryAccess(sourcePath, async () => {
+      const stats = await fs.promises.stat(sourcePath);
+      if (!stats.isFile()) {
+        throw new Error('The selected path is not a video file.');
+      }
+      await shell.trashItem(sourcePath);
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to move video to Trash:', error);
     return { success: false, error: error.message };
   }
 });
