@@ -562,11 +562,6 @@ defineExpose({ refresh: loadVideos });
     position: sticky;
     top: 0;
     max-height: calc(100vh - 60px);
-    overflow: hidden;
-    border: 1px solid #e1e7ec;
-    border-radius: 10px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .calendar-sidebar-header {
@@ -574,8 +569,7 @@ defineExpose({ refresh: loadVideos });
     align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
-    padding: 14px;
-    border-bottom: 1px solid #e5e9ed;
+    padding: 0 0 10px;
 }
 
 .calendar-sidebar-header > div {
@@ -614,7 +608,6 @@ defineExpose({ refresh: loadVideos });
 
 .calendar-sidebar-list {
     max-height: calc(100vh - 135px);
-    padding: 10px;
     overflow-y: auto;
 }
 
