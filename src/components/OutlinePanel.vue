@@ -11,20 +11,20 @@
         class="outline-textarea"
         :disabled="disabled"
       ></textarea>
-      <div class="outline-footer">
-        <span>{{ outlineText.length }} 字</span>
-        <div class="outline-footer-actions">
-          <button
-            type="button"
-            @click="clearOutline"
-            class="btn-clear"
-            title="清空大纲"
-            :disabled="!outlineText || disabled"
-          >
-            清空
-          </button>
-          <span>{{ disabled ? '录制中锁定' : '自动保存' }}</span>
-        </div>
+    </div>
+    <div class="outline-footer">
+      <span>{{ outlineText.length }} 字</span>
+      <div class="outline-footer-actions">
+        <button
+          type="button"
+          @click="clearOutline"
+          class="btn-clear"
+          title="清空大纲"
+          :disabled="!outlineText || disabled"
+        >
+          清空
+        </button>
+        <span>{{ disabled ? '录制中锁定' : '自动保存' }}</span>
       </div>
     </div>
   </div>
@@ -74,7 +74,7 @@ watch(outlineText, () => {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid #dde5ee;
   border-radius: 8px;
-  padding: 16px;
+  padding: 16px 16px 0;
   display: flex;
   flex-direction: column;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -113,10 +113,9 @@ watch(outlineText, () => {
   border: 1px solid #e4e9f0;
   border-radius: 6px;
   cursor: pointer;
-  color: #6b7788;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 5px 9px;
+  color: inherit;
+  font: inherit;
+  padding: 3px 7px;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
@@ -163,6 +162,29 @@ watch(outlineText, () => {
   outline: none;
   display: block;
   caret-color: #42b983;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.42) transparent;
+}
+
+.outline-textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.outline-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.outline-textarea::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.42);
+  background-clip: padding-box;
+}
+
+.outline-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.62);
+  background-clip: padding-box;
 }
 
 .outline-textarea::placeholder {
@@ -178,14 +200,17 @@ watch(outlineText, () => {
 
 .outline-footer {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   border-top: 1px solid #e3e9f0;
   color: #7f8b9b;
   font-size: 12px;
   line-height: 1;
-  padding: 9px 12px;
-  background: rgba(248, 250, 252, 0.9);
+  margin: 8px -16px 0;
+  padding: 5px 16px;
+  background: transparent;
+  border-radius: 0 0 7px 7px;
 }
 
 .outline-footer-actions {
