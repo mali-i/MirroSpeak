@@ -402,10 +402,16 @@ const loadVideos = async (resetCalendar = false) => {
   }
 };
 
-const setViewMode = (mode) => {
+const setViewMode = async (mode) => {
+  if (!['cards', 'calendar'].includes(mode)) return;
   viewMode.value = mode;
   openMenuPath.value = '';
   cancelRename();
+  try {
+    await window.electronAPI.setConfig('galleryViewMode', mode);
+  } catch (error) {
+    console.error('Failed to save gallery view mode:', error);
+  }
 };
 
 const selectCalendarDay = (day) => {
@@ -561,7 +567,15 @@ const handleVideoError = (e) => {
 };
 
 watch(() => props.directory, () => loadVideos(true));
-onMounted(() => {
+onMounted(async () => {
+  try {
+    const savedViewMode = await window.electronAPI.getConfig('galleryViewMode');
+    if (['cards', 'calendar'].includes(savedViewMode)) {
+      viewMode.value = savedViewMode;
+    }
+  } catch (error) {
+    console.error('Failed to load gallery view mode:', error);
+  }
   loadVideos(true);
   document.addEventListener('click', closeVideoMenu);
 });
