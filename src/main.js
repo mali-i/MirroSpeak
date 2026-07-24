@@ -293,6 +293,80 @@ ipcMain.handle('video:list', async (event, directory) => {
   }
 });
 
+ipcMain.handle('video:rename', async (event, { filePath, newName }) => {
+  try {
+    if (typeof filePath !== 'string' || typeof newName !== 'string') {
+      throw new Error('Invalid rename request.');
+    }
+
+    const directoryAccess = getDirectoryAccessForPath(filePath);
+    if (!directoryAccess) {
+      throw new Error('The video is outside the selected save directory.');
+    }
+
+    const trimmedName = newName.trim();
+    if (!trimmedName || trimmedName === '.' || trimmedName === '..') {
+      throw new Error('Video name cannot be empty.');
+    }
+    if (path.basename(trimmedName) !== trimmedName || trimmedName.startsWith('.')) {
+      throw new Error('Video name contains invalid characters.');
+    }
+
+    const sourcePath = path.resolve(filePath);
+    const extension = path.extname(sourcePath);
+    if (!['.webm', '.mp4'].includes(extension.toLowerCase())) {
+      throw new Error('Only video files can be renamed.');
+    }
+
+    const requestedExtension = path.extname(trimmedName);
+    const nameWithoutExtension = ['.webm', '.mp4'].includes(requestedExtension.toLowerCase())
+      ? trimmedName.slice(0, -requestedExtension.length)
+      : trimmedName;
+    if (!nameWithoutExtension.trim()) {
+      throw new Error('Video name cannot be empty.');
+    }
+
+    const targetPath = path.join(path.dirname(sourcePath), `${nameWithoutExtension}${extension}`);
+    if (!getDirectoryAccessForPath(targetPath)) {
+      throw new Error('The new video path is outside the selected save directory.');
+    }
+
+    return await withDirectoryAccess(sourcePath, async () => {
+      if (sourcePath === targetPath) {
+        return { success: true, filePath: sourcePath, name: path.basename(sourcePath) };
+      }
+
+      try {
+        const [sourceStats, targetStats] = await Promise.all([
+          fs.promises.stat(sourcePath),
+          fs.promises.stat(targetPath),
+        ]);
+        if (!sourceStats.isFile()) {
+          throw new Error('The selected path is not a video file.');
+        }
+        if (sourceStats.dev !== targetStats.dev || sourceStats.ino !== targetStats.ino) {
+          throw new Error('A video with this name already exists.');
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          throw error;
+        }
+
+        const sourceStats = await fs.promises.stat(sourcePath);
+        if (!sourceStats.isFile()) {
+          throw new Error('The selected path is not a video file.');
+        }
+      }
+
+      await fs.promises.rename(sourcePath, targetPath);
+      return { success: true, filePath: targetPath, name: path.basename(targetPath) };
+    });
+  } catch (error) {
+    console.error('Failed to rename video:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
