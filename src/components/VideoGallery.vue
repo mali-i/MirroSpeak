@@ -6,8 +6,16 @@
     </div>
     <div v-if="videos.length === 0" class="no-videos">No videos found.</div>
     <div class="video-grid">
-      <div v-for="video in videos" :key="video.path" class="video-item" @click="playVideo(video)">
-        <div class="video-thumbnail">
+      <div v-for="video in videos" :key="video.path" class="video-item">
+        <div
+          class="video-thumbnail"
+          role="button"
+          tabindex="0"
+          :aria-label="`Play ${video.name}`"
+          @click="playVideo(video)"
+          @keydown.enter.prevent="playVideo(video)"
+          @keydown.space.prevent="playVideo(video)"
+        >
             <img 
               :src="getThumbnailUrl(video.path)" 
               loading="lazy" 
@@ -264,7 +272,6 @@ defineExpose({ refresh: loadVideos });
     border: 1px solid #eee;
     border-radius: 8px;
     overflow: hidden;
-    cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
@@ -279,6 +286,11 @@ defineExpose({ refresh: loadVideos });
     display: flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
+}
+.video-thumbnail:focus-visible {
+    outline: 3px solid #42b983;
+    outline-offset: -3px;
 }
 .video-thumbnail video,
 .video-thumbnail img {
