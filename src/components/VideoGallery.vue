@@ -153,6 +153,12 @@
                   >···</button>
                   <div v-if="openMenuPath === video.path" class="video-menu-popover">
                     <button type="button" @click="startRename(video)">Rename</button>
+                    <button
+                      type="button"
+                      class="delete-menu-item"
+                      :disabled="deletePendingPath === video.path"
+                      @click="requestDeleteVideo(video)"
+                    >Delete</button>
                   </div>
                 </div>
               </div>
@@ -215,6 +221,12 @@
               >···</button>
               <div v-if="openMenuPath === video.path" class="video-menu-popover">
                 <button type="button" @click="startRename(video)">Rename</button>
+                <button
+                  type="button"
+                  class="delete-menu-item"
+                  :disabled="deletePendingPath === video.path"
+                  @click="requestDeleteVideo(video)"
+                >Delete</button>
               </div>
             </div>
           </div>
@@ -222,6 +234,41 @@
       </div>
       </div>
     </template>
+
+    <div
+      v-if="trashCandidate"
+      class="trash-confirm-overlay"
+      @click.self="cancelDeleteVideo"
+    >
+      <div
+        class="trash-confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="trash-confirm-title"
+        aria-describedby="trash-confirm-description"
+        @click.stop
+      >
+        <h2 id="trash-confirm-title">Move “{{ trashCandidate.name }}” to Trash?</h2>
+        <p id="trash-confirm-description">
+          This video will be removed from the MirroSpeak gallery and its current location on disk,
+          then moved to the system Trash. You can restore it from Trash later.
+        </p>
+        <div class="trash-confirm-actions">
+          <button
+            type="button"
+            class="trash-cancel-btn"
+            :disabled="isMovingToTrash"
+            @click="cancelDeleteVideo"
+          >Cancel</button>
+          <button
+            type="button"
+            class="trash-confirm-btn"
+            :disabled="isMovingToTrash"
+            @click="deleteVideo"
+          >{{ isMovingToTrash ? 'Moving…' : 'Move to Trash' }}</button>
+        </div>
+      </div>
+    </div>
     
     <div v-if="selectedVideo" class="video-modal" @click.self="closeModal">
         <div class="modal-content">
@@ -257,6 +304,9 @@ const selectedVideo = ref(null);
 const renamingPath = ref('');
 const renameValue = ref('');
 const renamePending = ref(false);
+const deletePendingPath = ref('');
+const isMovingToTrash = ref(false);
+const trashCandidate = ref(null);
 const openMenuPath = ref('');
 const viewMode = ref('cards');
 const selectedDate = ref('');
@@ -449,6 +499,47 @@ const submitRename = async (video) => {
     alert(`Failed to rename video: ${error.message}`);
   } finally {
     renamePending.value = false;
+  }
+};
+
+const requestDeleteVideo = (video) => {
+  if (isMovingToTrash.value) return;
+  openMenuPath.value = '';
+  trashCandidate.value = video;
+};
+
+const cancelDeleteVideo = () => {
+  if (isMovingToTrash.value) return;
+  trashCandidate.value = null;
+};
+
+const deleteVideo = async () => {
+  const video = trashCandidate.value;
+  if (!video || isMovingToTrash.value) return;
+
+  isMovingToTrash.value = true;
+  deletePendingPath.value = video.path;
+  try {
+    const result = await window.electronAPI.deleteVideo({ filePath: video.path });
+    if (!result.success) {
+      alert(`Failed to move video to Trash: ${result.error}`);
+      return;
+    }
+
+    if (selectedVideo.value?.path === video.path) {
+      selectedVideo.value = null;
+    }
+    if (renamingPath.value === video.path) {
+      renamingPath.value = '';
+      renameValue.value = '';
+    }
+    trashCandidate.value = null;
+    await loadVideos();
+  } catch (error) {
+    alert(`Failed to move video to Trash: ${error.message}`);
+  } finally {
+    isMovingToTrash.value = false;
+    deletePendingPath.value = '';
   }
 };
 
@@ -1083,6 +1174,84 @@ defineExpose({ refresh: loadVideos });
 }
 .video-menu-popover button:hover {
     background: #edf2f7;
+}
+
+.video-menu-popover .delete-menu-item {
+    color: #c0392b;
+}
+
+.video-menu-popover .delete-menu-item:hover {
+    background: #fdf0ee;
+}
+
+.video-menu-popover button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.trash-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(3px);
+}
+
+.trash-confirm-dialog {
+    width: min(560px, 100%);
+    padding: 24px;
+    border-radius: 10px;
+    background: white;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
+.trash-confirm-dialog h2 {
+    margin: 0 0 12px;
+    overflow-wrap: anywhere;
+    color: #2c3e50;
+    font-size: 1.15rem;
+}
+
+.trash-confirm-dialog p {
+    margin: 0;
+    color: #5f6c78;
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+.trash-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.trash-confirm-actions button {
+    min-width: 110px;
+    padding: 9px 16px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.trash-cancel-btn {
+    background: #edf2f7;
+    color: #52606d;
+}
+
+.trash-confirm-btn {
+    background: #c0392b;
+    color: white;
+}
+
+.trash-confirm-actions button:disabled {
+    cursor: default;
+    opacity: 0.65;
 }
 
 .video-modal {
