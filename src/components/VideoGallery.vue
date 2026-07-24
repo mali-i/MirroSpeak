@@ -6,7 +6,7 @@
     </div>
     <div v-if="videos.length === 0" class="no-videos">No videos found.</div>
     <div class="video-grid">
-      <div v-for="video in videos" :key="video.name" class="video-item" @click="playVideo(video)">
+      <div v-for="video in videos" :key="video.path" class="video-item" @click="playVideo(video)">
         <div class="video-thumbnail">
             <img 
               :src="getThumbnailUrl(video.path)" 
@@ -17,7 +17,28 @@
             <div class="play-icon">▶</div>
         </div>
         <div class="video-info">
-          <div class="video-name" :title="video.name">{{ video.name }}</div>
+          <form
+            v-if="renamingPath === video.path"
+            class="rename-form"
+            @click.stop
+            @submit.prevent="submitRename(video)"
+          >
+            <input
+              :ref="setRenameInput"
+              v-model="renameValue"
+              class="rename-input"
+              type="text"
+              maxlength="200"
+              aria-label="New video name"
+              @keydown.esc.prevent="cancelRename"
+            />
+            <button class="rename-confirm" type="submit" :disabled="renamePending">Save</button>
+            <button class="rename-cancel" type="button" :disabled="renamePending" @click="cancelRename">Cancel</button>
+          </form>
+          <div v-else class="video-name-row">
+            <div class="video-name" :title="video.name">{{ video.name }}</div>
+            <button class="rename-btn" type="button" title="Rename video" @click.stop="startRename(video)">Rename</button>
+          </div>
           <div class="video-date">{{ formatDate(video.createdAt) }}</div>
         </div>
       </div>
@@ -45,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, nextTick } from 'vue';
 import dayjs from 'dayjs';
 
 const props = defineProps({
@@ -54,6 +75,10 @@ const props = defineProps({
 
 const videos = ref([]);
 const selectedVideo = ref(null);
+const renamingPath = ref('');
+const renameValue = ref('');
+const renamePending = ref(false);
+let renameInput = null;
 
 const loadVideos = async () => {
   if (props.directory) {
@@ -85,6 +110,49 @@ const getVideoUrl = (path) => {
 
 const playVideo = (video) => {
     selectedVideo.value = video;
+};
+
+const setRenameInput = (element) => {
+  renameInput = element;
+};
+
+const startRename = async (video) => {
+  renamingPath.value = video.path;
+  renameValue.value = video.name.replace(/\.(webm|mp4)$/i, '');
+  await nextTick();
+  renameInput?.focus();
+  renameInput?.select();
+};
+
+const cancelRename = () => {
+  if (renamePending.value) return;
+  renamingPath.value = '';
+  renameValue.value = '';
+};
+
+const submitRename = async (video) => {
+  const newName = renameValue.value.trim();
+  if (!newName || renamePending.value) return;
+
+  renamePending.value = true;
+  try {
+    const result = await window.electronAPI.renameVideo({
+      filePath: video.path,
+      newName,
+    });
+    if (!result.success) {
+      alert(`Failed to rename video: ${result.error}`);
+      return;
+    }
+
+    renamingPath.value = '';
+    renameValue.value = '';
+    await loadVideos();
+  } catch (error) {
+    alert(`Failed to rename video: ${error.message}`);
+  } finally {
+    renamePending.value = false;
+  }
 };
 
 const closeModal = () => {
@@ -198,13 +266,66 @@ defineExpose({ refresh: loadVideos });
 .video-info {
     padding: 12px;
 }
+.video-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
 .video-name {
+    flex: 1;
+    min-width: 0;
     font-weight: 600;
     font-size: 0.9em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.rename-btn {
+    flex-shrink: 0;
+    padding: 3px 7px;
+    border: 1px solid #d7dee5;
+    border-radius: 4px;
+    background: #f7f9fb;
+    color: #52606d;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.rename-btn:hover {
+    background: #edf2f7;
+}
+.rename-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 5px;
     margin-bottom: 5px;
+}
+.rename-input {
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid #42b983;
+    border-radius: 4px;
+    font: inherit;
+}
+.rename-confirm,
+.rename-cancel {
+    padding: 4px 7px;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.rename-confirm {
+    background: #42b983;
+}
+.rename-cancel {
+    background: #7f8c8d;
+}
+.rename-confirm:disabled,
+.rename-cancel:disabled {
+    cursor: wait;
+    opacity: 0.65;
 }
 .video-date {
     font-size: 0.8em;
