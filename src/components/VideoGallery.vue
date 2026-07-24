@@ -88,7 +88,11 @@
         </div>
       </section>
 
-      <aside v-if="selectedDate" class="calendar-sidebar">
+      <aside
+        v-if="selectedDate"
+        class="calendar-sidebar"
+        @wheel.prevent.stop="handleSidebarWheel"
+      >
         <div class="calendar-sidebar-header">
           <div>
             <strong>{{ daySectionTitle }}</strong>
@@ -96,7 +100,7 @@
           </div>
           <button type="button" aria-label="Close video sidebar" @click="closeCalendarSidebar">×</button>
         </div>
-        <div class="calendar-sidebar-list">
+        <div ref="calendarSidebarList" class="calendar-sidebar-list">
           <div v-if="displayedVideos.length === 0" class="calendar-sidebar-empty">
             No videos recorded on this date.
           </div>
@@ -256,6 +260,7 @@ const renamePending = ref(false);
 const openMenuPath = ref('');
 const viewMode = ref('cards');
 const selectedDate = ref('');
+const calendarSidebarList = ref(null);
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 let renameInput = null;
 
@@ -362,6 +367,12 @@ const closeCalendarSidebar = () => {
   selectedDate.value = '';
   openMenuPath.value = '';
   cancelRename();
+};
+
+const handleSidebarWheel = (event) => {
+  if (!calendarSidebarList.value) return;
+  const distance = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+  calendarSidebarList.value.scrollTop += distance;
 };
 
 const formatDate = (date) => {
@@ -562,6 +573,7 @@ defineExpose({ refresh: loadVideos });
     position: sticky;
     top: 0;
     max-height: calc(100vh - 60px);
+    overscroll-behavior: contain;
 }
 
 .calendar-sidebar-header {
@@ -609,6 +621,7 @@ defineExpose({ refresh: loadVideos });
 .calendar-sidebar-list {
     max-height: calc(100vh - 135px);
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .calendar-sidebar-empty {
