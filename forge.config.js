@@ -8,7 +8,7 @@ const platformFromArgs = platformArgIndex >= 0
 const forgePlatform = process.env.FORGE_PLATFORM || process.env.npm_config_platform || platformFromArgs;
 const isMasBuild = forgePlatform === 'mas';
 const forgeOutDir = process.env.FORGE_OUT_DIR;
-const buildVersion = '3';
+const buildVersion = '4';
 const signingIdentity = isMasBuild
   ? process.env.APPLE_MAS_CERTIFICATE_IDENTITY
   : process.env.APPLE_CERTIFICATE_IDENTITY;
@@ -33,6 +33,7 @@ module.exports = {
     extendInfo: {
       CFBundleName: 'MirroSpeak',
       CFBundleDisplayName: 'MirroSpeak',
+      ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: 'Application needs access to the camera for video recording.',
       NSMicrophoneUsageDescription: 'Application needs access to the microphone for audio recording.',
       NSCameraUseContinuityCameraDeviceType: true
