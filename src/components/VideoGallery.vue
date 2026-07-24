@@ -1197,8 +1197,7 @@ defineExpose({ refresh: loadVideos });
     align-items: center;
     justify-content: center;
     padding: 20px;
-    background: rgba(15, 23, 42, 0.58);
-    backdrop-filter: blur(3px);
+    background: rgba(0, 0, 0, 0.18);
 }
 
 .trash-confirm-dialog {
