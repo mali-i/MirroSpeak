@@ -26,9 +26,11 @@
       >
       <section class="calendar-view">
         <div v-for="month in calendarMonths" :key="month.key" class="calendar-month">
-          <h2 class="calendar-month-title">{{ month.label }}</h2>
-          <div class="calendar-weekdays" aria-hidden="true">
-            <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+          <div class="calendar-month-sticky">
+            <h2 class="calendar-month-title">{{ month.label }}</h2>
+            <div class="calendar-weekdays" aria-hidden="true">
+              <span v-for="weekday in weekdays" :key="weekday">{{ weekday }}</span>
+            </div>
           </div>
           <div class="calendar-grid">
             <div
@@ -662,6 +664,24 @@ defineExpose({ refresh: loadVideos });
     margin-top: 36px;
 }
 
+.calendar-month-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #f5f7fa;
+}
+
+.calendar-month-sticky::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    left: 0;
+    height: 30px;
+    background: #f5f7fa;
+    pointer-events: none;
+}
+
 .calendar-month-title {
     margin: 0 0 10px;
     padding: 11px 16px;
@@ -823,6 +843,10 @@ defineExpose({ refresh: loadVideos });
 }
 
 @media (max-width: 600px) {
+    .calendar-month-sticky::before {
+        height: 15px;
+    }
+
     .gallery-info,
     .gallery-heading {
         align-items: stretch;
