@@ -1,8 +1,24 @@
 <template>
   <div class="recorder">
     <div class="recorder-info">
-      <span class="recorder-title">New Recording</span>
-      <span class="recorder-path">{{ saveDirectory }}</span>
+      <div class="recorder-heading">
+        <span class="recorder-title">New Recording</span>
+        <span class="recorder-path">{{ saveDirectory }}</span>
+      </div>
+      <button
+        type="button"
+        class="btn-outline-toggle"
+        :title="isOutlineOpen ? '关闭脚本大纲' : '打开脚本大纲'"
+        :aria-label="isOutlineOpen ? '关闭脚本大纲' : '打开脚本大纲'"
+        :aria-expanded="isOutlineOpen"
+        @click="isOutlineOpen = !isOutlineOpen"
+      >
+        <span class="outline-icon" aria-hidden="true">
+          <i></i>
+          <i></i>
+          <i></i>
+        </span>
+      </button>
     </div>
     <div class="recorder-stage">
       <div class="main-layout">
@@ -12,7 +28,7 @@
           <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
         </div>
         
-        <OutlinePanel :disabled="isRecording" />
+        <OutlinePanel v-if="isOutlineOpen" :disabled="isRecording" />
       </div>
 
       <div class="controls">
@@ -58,6 +74,7 @@ const isSaving = ref(false);
 const statusMessage = ref('');
 const statusType = ref('info');
 const filenamePrefix = ref('video');
+const isOutlineOpen = ref(true);
 
 // Devices
 const selectedVideoDeviceId = ref('');
@@ -243,10 +260,17 @@ onUnmounted(() => {
 
 .recorder-info {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   width: 100%;
-  justify-content: flex-start;
+  justify-content: space-between;
+}
+
+.recorder-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
 }
 
 .recorder-title {
@@ -259,6 +283,55 @@ onUnmounted(() => {
   font-size: 0.85rem;
   color: #7f8c8d;
   font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-outline-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex: 0 0 28px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.outline-icon {
+  width: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.outline-icon i {
+  position: relative;
+  display: block;
+  height: 2px;
+  margin-left: 5px;
+  border-radius: 999px;
+  background: #64748b;
+}
+
+.outline-icon i::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+.btn-outline-toggle:hover {
+  background: #e2e8f0;
 }
 
 .main-layout {
