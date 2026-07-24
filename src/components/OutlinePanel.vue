@@ -2,31 +2,29 @@
   <div class="outline-panel" :class="{ 'is-disabled': disabled }">
     <div class="outline-header">
       <div class="title-copy">
-          <h3>脚本大纲</h3>
-          <span>录制前整理表达顺序</span>
-      </div>
-      <div class="outline-actions">
-        <button
-          type="button"
-          @click="clearOutline"
-          class="btn-clear"
-          title="清空大纲"
-          :disabled="!outlineText || disabled"
-        >
-          清空
-        </button>
+        <span>录制前整理表达顺序</span>
       </div>
     </div>
     <div class="outline-content">
       <textarea 
         v-model="outlineText" 
-        placeholder="开场&#10;要点一&#10;要点二&#10;收尾"
         class="outline-textarea"
         :disabled="disabled"
       ></textarea>
       <div class="outline-footer">
         <span>{{ outlineText.length }} 字</span>
-        <span>{{ disabled ? '录制中锁定' : '自动保存' }}</span>
+        <div class="outline-footer-actions">
+          <button
+            type="button"
+            @click="clearOutline"
+            class="btn-clear"
+            title="清空大纲"
+            :disabled="!outlineText || disabled"
+          >
+            清空
+          </button>
+          <span>{{ disabled ? '录制中锁定' : '自动保存' }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -73,7 +71,7 @@ watch(outlineText, () => {
 <style scoped>
 .outline-panel {
   flex: 0 0 320px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.85);
   border: 1px solid #dde5ee;
   border-radius: 8px;
   padding: 16px;
@@ -85,7 +83,7 @@ watch(outlineText, () => {
 }
 
 .outline-panel.is-disabled {
-  background: #fbfcfd;
+  background: rgba(251, 252, 253, 0.85);
 }
 
 .outline-header {
@@ -94,14 +92,6 @@ watch(outlineText, () => {
   align-items: flex-start;
   gap: 10px;
   margin-bottom: 14px;
-}
-
-.outline-header h3 {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.25;
-  color: #2c3e50;
-  white-space: nowrap;
 }
 
 .title-copy {
@@ -119,7 +109,7 @@ watch(outlineText, () => {
 }
 
 .btn-clear {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.78);
   border: 1px solid #e4e9f0;
   border-radius: 6px;
   cursor: pointer;
@@ -142,7 +132,7 @@ watch(outlineText, () => {
 }
 
 .outline-content {
-  background: #fcfcfd;
+  background: transparent;
   border-radius: 6px;
   border: 1px solid #dfe6ee;
   flex: 1;
@@ -155,7 +145,7 @@ watch(outlineText, () => {
 
 .outline-content:focus-within {
   border-color: #42b983;
-  background: #ffffff;
+  background: transparent;
 }
 
 .outline-textarea {
@@ -163,7 +153,7 @@ watch(outlineText, () => {
   flex: 1;
   border: none;
   background:
-    linear-gradient(#fcfcfd 31px, #edf1f5 32px) 0 0 / 100% 32px;
+    linear-gradient(transparent 31px, rgba(220, 227, 235, 0.72) 32px) 0 0 / 100% 32px;
   font-family: inherit;
   font-size: 14px;
   line-height: 32px;
@@ -183,7 +173,7 @@ watch(outlineText, () => {
   cursor: not-allowed;
   color: #64748b;
   background:
-    linear-gradient(#f7f9fb 31px, #e8edf3 32px) 0 0 / 100% 32px;
+    linear-gradient(transparent 31px, rgba(220, 227, 235, 0.72) 32px) 0 0 / 100% 32px;
 }
 
 .outline-footer {
@@ -195,7 +185,13 @@ watch(outlineText, () => {
   font-size: 12px;
   line-height: 1;
   padding: 9px 12px;
-  background: #f8fafc;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.outline-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 @media (max-width: 600px) {
