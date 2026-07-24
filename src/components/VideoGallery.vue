@@ -551,11 +551,6 @@ defineExpose({ refresh: loadVideos });
 
 .calendar-view {
     margin-bottom: 24px;
-    padding: 18px;
-    border: 1px solid #e1e7ec;
-    border-radius: 10px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .calendar-sidebar {
@@ -664,15 +659,18 @@ defineExpose({ refresh: loadVideos });
 }
 
 .calendar-month + .calendar-month {
-    margin-top: 34px;
-    padding-top: 26px;
-    border-top: 1px solid #e5e9ed;
+    margin-top: 36px;
 }
 
 .calendar-month-title {
-    margin: 0;
-    padding-bottom: 14px;
-    font-size: 1.1rem;
+    margin: 0 0 10px;
+    padding: 11px 16px;
+    border-left: 4px solid #42b983;
+    border-radius: 6px;
+    background: #e9eef2;
+    color: #34495e;
+    font-size: 1rem;
+    font-weight: 700;
 }
 
 .calendar-weekdays,
@@ -682,19 +680,31 @@ defineExpose({ refresh: loadVideos });
 }
 
 .calendar-weekdays span {
-    padding: 0 6px 8px;
+    padding: 9px 6px;
+    border-top: 1px solid #e5e9ed;
     color: #7f8c8d;
+    background: #fff;
     font-size: 0.75rem;
     font-weight: 700;
     text-align: center;
     text-transform: uppercase;
 }
 
+.calendar-weekdays span:first-child {
+    border-left: 1px solid #e5e9ed;
+    border-top-left-radius: 7px;
+}
+
+.calendar-weekdays span:last-child {
+    border-right: 1px solid #e5e9ed;
+    border-top-right-radius: 7px;
+}
+
 .calendar-grid {
     overflow: hidden;
-    border-top: 1px solid #e5e9ed;
     border-left: 1px solid #e5e9ed;
-    border-radius: 7px;
+    border-radius: 0 0 7px 7px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.035);
 }
 
 .calendar-day {
@@ -841,7 +851,7 @@ defineExpose({ refresh: loadVideos });
     }
 
     .calendar-view {
-        padding: 10px;
+        margin-bottom: 16px;
     }
 
     .calendar-layout.with-sidebar {
