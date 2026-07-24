@@ -27,8 +27,11 @@
           <div v-if="isRecording" class="recording-indicator">🔴 Recording</div>
           <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
         </div>
-        
-        <OutlinePanel v-if="isOutlineOpen" :disabled="isRecording" />
+        <OutlinePanel
+          v-if="isOutlineOpen"
+          class="outline-overlay"
+          :disabled="isRecording"
+        />
       </div>
 
       <div class="controls">
@@ -335,6 +338,7 @@ onUnmounted(() => {
 }
 
 .main-layout {
+  position: relative;
   display: flex;
   flex-direction: row;
   align-items: stretch; /* Stretch children to have same height */
@@ -417,6 +421,16 @@ onUnmounted(() => {
   overflow: hidden;
   aspect-ratio: 16/9;
 }
+
+.outline-overlay {
+  position: absolute;
+  top: 12px;
+  right: max(0px, calc((100% - 760px) / 2));
+  z-index: 3;
+  width: min(320px, calc(100% - 24px));
+  flex-basis: auto;
+}
+
 video {
   width: 100%;
   height: 100%;
