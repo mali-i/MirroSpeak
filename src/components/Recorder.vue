@@ -423,12 +423,29 @@ onUnmounted(() => {
 }
 
 .outline-overlay {
-  position: absolute;
-  top: 12px;
-  right: max(0px, calc((100% - 760px) / 2));
-  z-index: 3;
-  width: min(320px, calc(100% - 24px));
+  position: fixed;
+  top: 82px;
+  right: 0;
+  z-index: 20;
+  width: min(340px, calc(100vw - 16px));
+  height: min(640px, calc(100vh - 112px));
+  max-height: calc(100vh - 112px);
   flex-basis: auto;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.14);
+  animation: outlineSlideIn 0.2s ease-out;
+}
+
+@keyframes outlineSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 video {
@@ -554,6 +571,13 @@ video {
 }
 
 @media (max-width: 600px) {
+    .outline-overlay {
+        top: 70px;
+        bottom: 80px;
+        height: auto;
+        max-height: none;
+    }
+
     .main-layout {
         flex-direction: column;
     }

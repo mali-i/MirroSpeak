@@ -71,7 +71,7 @@ watch(outlineText, () => {
 <style scoped>
 .outline-panel {
   flex: 0 0 320px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.75);
   border: 1px solid #dde5ee;
   border-radius: 8px;
   padding: 16px 16px 0;
@@ -83,7 +83,7 @@ watch(outlineText, () => {
 }
 
 .outline-panel.is-disabled {
-  background: rgba(251, 252, 253, 0.85);
+  background: rgba(251, 252, 253, 0.75);
 }
 
 .outline-header {
