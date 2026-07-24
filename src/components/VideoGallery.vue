@@ -35,11 +35,24 @@
             <button class="rename-confirm" type="submit" :disabled="renamePending">Save</button>
             <button class="rename-cancel" type="button" :disabled="renamePending" @click="cancelRename">Cancel</button>
           </form>
-          <div v-else class="video-name-row">
-            <div class="video-name" :title="video.name">{{ video.name }}</div>
-            <button class="rename-btn" type="button" title="Rename video" @click.stop="startRename(video)">Rename</button>
+          <div v-else class="video-name" :title="video.name">
+            {{ video.name }}
           </div>
-          <div class="video-date">{{ formatDate(video.createdAt) }}</div>
+          <div class="video-date-row">
+            <div class="video-date">{{ formatDate(video.createdAt) }}</div>
+            <div v-if="renamingPath !== video.path" class="video-menu" @click.stop>
+              <button
+                class="more-btn"
+                type="button"
+                aria-label="Video actions"
+                :aria-expanded="openMenuPath === video.path"
+                @click="toggleMenu(video.path)"
+              >···</button>
+              <div v-if="openMenuPath === video.path" class="video-menu-popover">
+                <button type="button" @click="startRename(video)">Rename</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -66,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import dayjs from 'dayjs';
 
 const props = defineProps({
@@ -78,6 +91,7 @@ const selectedVideo = ref(null);
 const renamingPath = ref('');
 const renameValue = ref('');
 const renamePending = ref(false);
+const openMenuPath = ref('');
 let renameInput = null;
 
 const loadVideos = async () => {
@@ -109,7 +123,16 @@ const getVideoUrl = (path) => {
 };
 
 const playVideo = (video) => {
+    openMenuPath.value = '';
     selectedVideo.value = video;
+};
+
+const toggleMenu = (videoPath) => {
+  openMenuPath.value = openMenuPath.value === videoPath ? '' : videoPath;
+};
+
+const closeVideoMenu = () => {
+  openMenuPath.value = '';
 };
 
 const setRenameInput = (element) => {
@@ -117,6 +140,7 @@ const setRenameInput = (element) => {
 };
 
 const startRename = async (video) => {
+  openMenuPath.value = '';
   renamingPath.value = video.path;
   renameValue.value = video.name.replace(/\.(webm|mp4)$/i, '');
   await nextTick();
@@ -173,7 +197,13 @@ const handleVideoError = (e) => {
 };
 
 watch(() => props.directory, loadVideos);
-onMounted(loadVideos);
+onMounted(() => {
+  loadVideos();
+  document.addEventListener('click', closeVideoMenu);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeVideoMenu);
+});
 
 defineExpose({ refresh: loadVideos });
 </script>
@@ -266,33 +296,13 @@ defineExpose({ refresh: loadVideos });
 .video-info {
     padding: 12px;
 }
-.video-name-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 5px;
-}
 .video-name {
-    flex: 1;
-    min-width: 0;
     font-weight: 600;
     font-size: 0.9em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-.rename-btn {
-    flex-shrink: 0;
-    padding: 3px 7px;
-    border: 1px solid #d7dee5;
-    border-radius: 4px;
-    background: #f7f9fb;
-    color: #52606d;
-    font-size: 0.75rem;
-    cursor: pointer;
-}
-.rename-btn:hover {
-    background: #edf2f7;
+    margin-bottom: 5px;
 }
 .rename-form {
     display: grid;
@@ -330,7 +340,60 @@ defineExpose({ refresh: loadVideos });
 .video-date {
     font-size: 0.8em;
     color: #888;
-    margin-bottom: 8px;
+}
+.video-date-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 24px;
+}
+.video-menu {
+    position: relative;
+    flex-shrink: 0;
+}
+.more-btn {
+    min-width: 28px;
+    height: 24px;
+    padding: 0 5px 5px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #697784;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+.more-btn:hover,
+.more-btn[aria-expanded="true"] {
+    background: #edf2f7;
+    color: #2c3e50;
+}
+.video-menu-popover {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 4px);
+    z-index: 10;
+    min-width: 110px;
+    padding: 4px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+.video-menu-popover button {
+    width: 100%;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #2c3e50;
+    text-align: left;
+    cursor: pointer;
+}
+.video-menu-popover button:hover {
+    background: #edf2f7;
 }
 
 .video-modal {
