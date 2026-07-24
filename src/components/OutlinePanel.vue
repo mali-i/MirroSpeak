@@ -1,22 +1,11 @@
 <template>
-  <div class="outline-panel" :class="{ 'is-collapsed': isCollapsed, 'is-disabled': disabled }">
+  <div class="outline-panel" :class="{ 'is-disabled': disabled }">
     <div class="outline-header">
-      <div class="title-with-toggle">
-        <button
-          type="button"
-          @click="isCollapsed = !isCollapsed"
-          class="btn-toggle"
-          :title="isCollapsed ? '展开大纲' : '折叠大纲'"
-        >
-          {{ isCollapsed ? '›' : '⌄' }}
-        </button>
-        <div v-if="!isCollapsed" class="title-copy">
+      <div class="title-copy">
           <h3>脚本大纲</h3>
           <span>录制前整理表达顺序</span>
-        </div>
-        <h3 v-else class="collapsed-title">脚本</h3>
       </div>
-      <div v-if="!isCollapsed" class="outline-actions">
+      <div class="outline-actions">
         <button
           type="button"
           @click="clearOutline"
@@ -28,7 +17,7 @@
         </button>
       </div>
     </div>
-    <div v-if="!isCollapsed" class="outline-content">
+    <div class="outline-content">
       <textarea 
         v-model="outlineText" 
         placeholder="开场&#10;要点一&#10;要点二&#10;收尾"
@@ -54,7 +43,6 @@ defineProps({
 });
 
 const outlineText = ref('');
-const isCollapsed = ref(false);
 
 const saveOutline = () => {
   localStorage.setItem('recording_outline', outlineText.value);
@@ -96,12 +84,6 @@ watch(outlineText, () => {
   max-height: 640px;
 }
 
-.outline-panel.is-collapsed {
-  flex: 0 0 54px;
-  padding: 16px 8px;
-  align-items: center;
-}
-
 .outline-panel.is-disabled {
   background: #fbfcfd;
 }
@@ -112,48 +94,6 @@ watch(outlineText, () => {
   align-items: flex-start;
   gap: 10px;
   margin-bottom: 14px;
-}
-
-.is-collapsed .outline-header {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.title-with-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  min-width: 0;
-}
-
-.is-collapsed .title-with-toggle {
-  flex-direction: column;
-  align-items: center;
-}
-
-.btn-toggle {
-  width: 26px;
-  height: 26px;
-  background: #f6f8fb;
-  border: 1px solid #e3e8ef;
-  cursor: pointer;
-  font-size: 17px;
-  line-height: 1;
-  color: #526172;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.btn-toggle:hover {
-  background: #eef3f8;
-  border-color: #d8e0ea;
 }
 
 .outline-header h3 {
@@ -176,13 +116,6 @@ watch(outlineText, () => {
   font-size: 12px;
   line-height: 1.35;
   white-space: nowrap;
-}
-
-.collapsed-title {
-  writing-mode: vertical-lr;
-  margin-top: 10px !important;
-  letter-spacing: 2px;
-  color: #64748b !important;
 }
 
 .btn-clear {
@@ -266,24 +199,9 @@ watch(outlineText, () => {
 }
 
 @media (max-width: 600px) {
-  .outline-panel,
-  .outline-panel.is-collapsed {
+  .outline-panel {
     flex: none;
     width: 100%;
-  }
-
-  .outline-panel.is-collapsed {
-    align-items: stretch;
-  }
-
-  .is-collapsed .outline-header,
-  .is-collapsed .title-with-toggle {
-    flex-direction: row;
-  }
-
-  .collapsed-title {
-    writing-mode: horizontal-tb;
-    margin-top: 0 !important;
   }
 
   .title-copy span {
