@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('speech-recognizer:status', listener);
     return () => ipcRenderer.removeListener('speech-recognizer:status', listener);
   },
+  sendSpeechAudioFrame: (samples) => ipcRenderer.send('speech-audio:frame', { samples, sampleRate: 16000 }),
+  finishSpeechAudio: () => ipcRenderer.send('speech-audio:finish'),
+  onSpeechRecognitionMessage: (callback) => {
+    const listener = (_event, message) => callback(message);
+    ipcRenderer.on('speech-recognition:message', listener);
+    return () => ipcRenderer.removeListener('speech-recognition:message', listener);
+  },
   saveVideo: (data) => ipcRenderer.invoke('video:save', data),
   getVideos: (directory) => ipcRenderer.invoke('video:list', directory),
   renameVideo: (data) => ipcRenderer.invoke('video:rename', data),
