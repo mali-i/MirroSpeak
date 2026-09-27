@@ -9,6 +9,10 @@
 - **🖼️ 视频回廊 (Gallery)**：内置视频管理库，轻松回顾与播放历史录像。
 - **🔒 本地优先**：所有视频与文本数据存储在本地，充分保护你的隐私。
 
+### 本地语音模型
+
+应用首次启动时会从 sherpa-onnx 官方 GitHub Release 下载流式 Paraformer 中英双语模型，并安装到 Electron `userData/models/sherpa-onnx-streaming-paraformer-bilingual-zh-en` 目录。模型下载失败时，应用会显示错误和重试入口。此模型目前为实时语音识别功能准备；下载模型本身不会自动启用录音转写。
+
 ## 🛠️ 技术栈
 
 本项目基于 modern Web 技术栈构建：
