@@ -16,7 +16,7 @@ if (started) {
   app.quit();
 }
 
-app.setName('MirroSpeak');
+app.setName('VideoLog');
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -333,6 +333,7 @@ const createWindow = () => {
 
   // Create the browser window.
   mainWindow = new BrowserWindow({
+    title: 'VideoLog',
     width: 1200,
     height: 800,
     webPreferences: {
@@ -383,7 +384,7 @@ const createApplicationMenu = () => {
       role: 'windowMenu',
       submenu: [
         {
-          label: 'Open MirroSpeak',
+          label: 'Open VideoLog',
           accelerator: 'CmdOrCtrl+1',
           click: showMainWindow,
         },
@@ -405,7 +406,7 @@ const createMacDockMenu = () => {
 
   app.dock.setMenu(Menu.buildFromTemplate([
     {
-      label: 'Open MirroSpeak',
+      label: 'Open VideoLog',
       click: showMainWindow,
     },
   ]));

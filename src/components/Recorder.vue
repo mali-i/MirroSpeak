@@ -226,7 +226,7 @@ const startRecording = () => {
 
       let transcriptResult;
       if (transcript) {
-        const documentText = `MirroSpeak Transcript\nRecording time: ${recordingStartedAt}\n\n${transcript}\n`;
+        const documentText = `VideoLog Transcript\nRecording time: ${recordingStartedAt}\n\n${transcript}\n`;
         try {
           transcriptResult = await window.electronAPI.saveTranscript({
             text: documentText,
