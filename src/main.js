@@ -515,6 +515,26 @@ ipcMain.handle('video:save', async (event, { buffer, filename, directory }) => {
   }
 });
 
+ipcMain.handle('transcript:save', async (event, { text, filename, directory }) => {
+  try {
+    if (typeof text !== 'string' || typeof filename !== 'string' || typeof directory !== 'string') {
+      throw new Error('Invalid transcript save request.');
+    }
+    if (path.basename(filename) !== filename || !filename.toLowerCase().endsWith('.txt')) {
+      throw new Error('Invalid transcript filename.');
+    }
+
+    const filePath = path.join(directory, filename);
+    await withDirectoryAccess(filePath, async () => {
+      await fs.promises.writeFile(filePath, text, 'utf8');
+    });
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('Failed to save transcript:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('video:list', async (event, directory) => {
   try {
     return await withDirectoryAccess(directory, async () => {
