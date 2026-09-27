@@ -3,8 +3,7 @@
     <aside class="sidebar">
       <div class="brand">
         <h1>
-          <img :src="appIcon" alt="MirroSpeak" class="brand-icon" />
-          <span>MirroSpeak</span>
+          <span>Video Log</span>
         </h1>
       </div>
       <nav class="nav-menu">
