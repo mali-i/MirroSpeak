@@ -250,7 +250,7 @@
       >
         <h2 id="trash-confirm-title">Move “{{ trashCandidate.name }}” to Trash?</h2>
         <p id="trash-confirm-description">
-          This video will be removed from the MirroSpeak gallery and its current location on disk,
+          This video will be removed from the VideoLog gallery and its current location on disk,
           then moved to the system Trash. You can restore it from Trash later.
         </p>
         <div class="trash-confirm-actions">
