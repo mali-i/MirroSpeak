@@ -446,6 +446,61 @@ ipcMain.handle('speech-model:status', async () => {
 ipcMain.handle('speech-model:ensure', () => installAndInitializeParaformer());
 ipcMain.handle('speech-recognizer:status', () => ({ ...paraformerRecognizerState }));
 
+const speechStreams = new Map();
+const lastSpeechTexts = new Map();
+const sendSpeechMessage = (webContents, message) => {
+  if (!webContents.isDestroyed()) webContents.send('speech-recognition:message', message);
+};
+
+ipcMain.on('speech-audio:frame', (event, { samples, sampleRate }) => {
+  if (!paraformerRecognizer) {
+    sendSpeechMessage(event.sender, { type: 'error', message: 'Speech recognizer is not ready.' });
+    return;
+  }
+  if (!(samples instanceof Float32Array) || sampleRate !== 16000) return;
+
+  try {
+    const id = event.sender.id;
+    let stream = speechStreams.get(id);
+    if (!stream) {
+      stream = paraformerRecognizer.createStream();
+      speechStreams.set(id, stream);
+    }
+    stream.acceptWaveform({ samples, sampleRate });
+    while (paraformerRecognizer.isReady(stream)) paraformerRecognizer.decode(stream);
+
+    const text = paraformerRecognizer.getResult(stream).text;
+    const final = paraformerRecognizer.isEndpoint(stream);
+    if (text && (text !== lastSpeechTexts.get(id) || final)) {
+      sendSpeechMessage(event.sender, { type: 'result', text, final });
+      lastSpeechTexts.set(id, final ? '' : text);
+    }
+    if (final) paraformerRecognizer.reset(stream);
+  } catch (error) {
+    sendSpeechMessage(event.sender, { type: 'error', message: error.message });
+  }
+});
+
+ipcMain.on('speech-audio:finish', (event) => {
+  const id = event.sender.id;
+  const stream = speechStreams.get(id);
+  try {
+    if (stream && paraformerRecognizer) {
+      stream.inputFinished();
+      while (paraformerRecognizer.isReady(stream)) paraformerRecognizer.decode(stream);
+      const text = paraformerRecognizer.getResult(stream).text;
+      if (text) sendSpeechMessage(event.sender, { type: 'result', text, final: true });
+      paraformerRecognizer.reset(stream);
+    }
+  } catch (error) {
+    sendSpeechMessage(event.sender, { type: 'error', message: error.message });
+  } finally {
+    speechStreams.delete(id);
+    lastSpeechTexts.delete(id);
+    sendSpeechMessage(event.sender, { type: 'finished' });
+  }
+});
+
 ipcMain.handle('video:save', async (event, { buffer, filename, directory }) => {
   try {
     const filePath = path.join(directory, filename);
