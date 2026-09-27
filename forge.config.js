@@ -25,7 +25,9 @@ const isTopLevelAppBundle = (filePath) => filePath.endsWith('.app') && !filePath
 module.exports = {
   outDir: forgeOutDir,
   packagerConfig: {
-    asar: true,
+    asar: {
+      unpack: 'node_modules/sherpa-onnx-*/**/*',
+    },
     executableName: 'MirroSpeak',
     appBundleId: 'cn.com.mirrospeak',
     buildVersion,
