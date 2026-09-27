@@ -26,9 +26,6 @@
           <video ref="videoPreview" autoplay muted playsinline></video>
           <div v-if="isRecording" class="recording-indicator">🔴 Recording</div>
           <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
-          <div v-if="finalizedTranscript || interimTranscript" class="speech-transcript">
-            {{ finalizedTranscript }}<span v-if="interimTranscript" class="transcript-interim">{{ finalizedTranscript ? ' ' : '' }}{{ interimTranscript }}</span>
-          </div>
         </div>
         <OutlinePanel
           v-if="isOutlineOpen"
@@ -442,27 +439,6 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 16/9;
-}
-
-.speech-transcript {
-  position: absolute;
-  left: 5%;
-  right: 5%;
-  bottom: 20px;
-  z-index: 2;
-  padding: 10px 14px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.68);
-  color: white;
-  text-align: center;
-  font-size: 1rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-}
-
-.transcript-interim {
-  color: #d1d5db;
 }
 
 .outline-overlay {
