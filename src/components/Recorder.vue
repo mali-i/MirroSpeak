@@ -61,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, onActivated, onDeactivated, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue';
 import dayjs from 'dayjs';
 import OutlinePanel from './OutlinePanel.vue';
 import { SpeechAudioCapture } from '../audio/speech-audio-capture.js';
