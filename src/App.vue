@@ -33,6 +33,15 @@
 
     <div class="main-wrapper">
       <main class="content-area">
+        <div v-if="speechModelStatus.status !== 'ready'" class="model-download-banner" :class="speechModelStatus.status">
+          <span v-if="speechModelStatus.status === 'downloading'">
+            Downloading offline speech model{{ speechModelStatus.totalBytes ? ` — ${Math.floor(speechModelStatus.downloadedBytes / speechModelStatus.totalBytes * 100)}%` : '…' }}
+          </span>
+          <span v-else-if="speechModelStatus.status === 'extracting'">Installing offline speech model…</span>
+          <span v-else-if="speechModelStatus.status === 'error'">Speech model download failed: {{ speechModelStatus.error }}</span>
+          <span v-else>Preparing offline speech model…</span>
+          <button v-if="speechModelStatus.status === 'error'" @click="retrySpeechModelDownload">Retry</button>
+        </div>
         <KeepAlive>
           <Recorder 
             v-if="currentView === 'record'" 
@@ -56,7 +65,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import Recorder from './components/Recorder.vue';
 import VideoGallery from './components/VideoGallery.vue';
 import Settings from './components/Settings.vue';
@@ -65,6 +74,8 @@ import appIcon from '../assets/icons/icon.png';
 const saveDirectoryAccess = ref(null);
 const galleryRef = ref(null);
 const currentView = ref('record');
+const speechModelStatus = ref({ status: 'checking', downloadedBytes: 0, totalBytes: 0, error: '' });
+let unsubscribeSpeechModelProgress;
 const saveDirectory = computed(() => saveDirectoryAccess.value?.path || '');
 
 const onVideoSaved = () => {
@@ -86,7 +97,23 @@ const updateSaveDirectoryAccess = (value) => {
   saveDirectoryAccess.value = value;
 };
 
+const retrySpeechModelDownload = async () => {
+  try {
+    speechModelStatus.value = { ...(await window.electronAPI.ensureSpeechModel()) };
+  } catch (error) {
+    speechModelStatus.value = { status: 'error', error: error.message };
+  }
+};
+
 onMounted(async () => {
+  unsubscribeSpeechModelProgress = window.electronAPI.onSpeechModelProgress((state) => {
+    speechModelStatus.value = state;
+  });
+  speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
+  if (speechModelStatus.value.status !== 'ready') {
+    retrySpeechModelDownload();
+  }
+
   const savedAccess = await window.electronAPI.getConfig('saveDirectoryAccess');
   if (savedAccess?.path) {
     saveDirectoryAccess.value = savedAccess;
@@ -98,6 +125,8 @@ onMounted(async () => {
     saveDirectoryAccess.value = { path: savedPath, bookmark: '' };
   }
 });
+
+onUnmounted(() => unsubscribeSpeechModelProgress?.());
 </script>
 
 <style>
@@ -257,6 +286,31 @@ body {
   padding: 30px;
   overflow-y: auto;
   background-color: #f5f7fa;
+}
+
+.model-download-banner {
+  padding: 10px 16px;
+  background: #fff7e6;
+  border-bottom: 1px solid #f0d79c;
+  color: #664d03;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.model-download-banner.error {
+  background: #fff1f0;
+  border-color: #ffccc7;
+  color: #a8071a;
+}
+
+.model-download-banner button {
+  border: 0;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
 }
 
 .view-container {
