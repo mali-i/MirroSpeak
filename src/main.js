@@ -6,7 +6,6 @@ import crypto from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { Readable } from 'node:stream';
 import Store from 'electron-store';
 import started from 'electron-squirrel-startup';
@@ -49,12 +48,8 @@ const paraformerModelName = 'sherpa-onnx-streaming-paraformer-bilingual-zh-en';
 const paraformerModelUrl = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${paraformerModelName}.tar.bz2`;
 const modelDownloadIdleTimeoutMs = 30_000;
 const getParaformerModelDirectory = () => path.join(app.getPath('userData'), 'models', paraformerModelName);
-const getAppRequire = () => createRequire(path.join(app.getAppPath(), 'package.json'));
 let paraformerDownloadPromise;
-let paraformerRecognizer;
-let paraformerRecognizerPromise;
 let paraformerDownloadState = { status: 'checking', downloadedBytes: 0, totalBytes: 0, error: '' };
-let paraformerRecognizerState = { status: 'waiting', error: '' };
 
 const requiredParaformerFiles = ['tokens.txt', 'encoder.int8.onnx', 'decoder.int8.onnx'];
 
@@ -71,70 +66,6 @@ const publishParaformerDownloadState = () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('speech-model:progress', paraformerDownloadState);
   }
-};
-
-const publishParaformerRecognizerState = () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('speech-recognizer:status', paraformerRecognizerState);
-  }
-};
-
-const initializeParaformerRecognizer = async () => {
-  if (paraformerRecognizer) return { ...paraformerRecognizerState };
-  if (paraformerRecognizerPromise) return paraformerRecognizerPromise;
-
-  paraformerRecognizerState = { status: 'loading', error: '' };
-  publishParaformerRecognizerState();
-  paraformerRecognizerPromise = (async () => {
-    try {
-      const modelDirectory = getParaformerModelDirectory();
-      if (!(await hasParaformerModel(modelDirectory))) {
-        throw new Error('The Paraformer model is not installed yet.');
-      }
-
-      const appRequire = getAppRequire();
-      const sherpaPlatform = process.platform === 'win32' ? 'win' : process.platform;
-      const nativePackagePath = appRequire.resolve(`sherpa-onnx-${sherpaPlatform}-${process.arch}`);
-      const nativeLibraryDirectory = path.dirname(nativePackagePath);
-      const loadableLibraryDirectory = nativeLibraryDirectory.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
-      const libraryPathVariable = process.platform === 'darwin' ? 'DYLD_LIBRARY_PATH' : 'LD_LIBRARY_PATH';
-      process.env[libraryPathVariable] = [loadableLibraryDirectory, process.env[libraryPathVariable]]
-        .filter(Boolean)
-        .join(path.delimiter);
-
-      const sherpaOnnx = appRequire('sherpa-onnx-node');
-      paraformerRecognizer = new sherpaOnnx.OnlineRecognizer({
-        featConfig: { sampleRate: 16000, featureDim: 80 },
-        modelConfig: {
-          paraformer: {
-            encoder: path.join(modelDirectory, 'encoder.int8.onnx'),
-            decoder: path.join(modelDirectory, 'decoder.int8.onnx'),
-          },
-          tokens: path.join(modelDirectory, 'tokens.txt'),
-          numThreads: 2,
-          provider: process.platform === 'darwin' ? 'coreml' : 'cpu',
-          modelType: 'paraformer',
-        },
-        decodingMethod: 'greedy_search',
-        enableEndpoint: true,
-      });
-      paraformerRecognizerState = { status: 'ready', error: '' };
-      publishParaformerRecognizerState();
-      return { ...paraformerRecognizerState };
-    } catch (error) {
-      paraformerRecognizerState = { status: 'error', error: error.message };
-      publishParaformerRecognizerState();
-      throw error;
-    } finally {
-      paraformerRecognizerPromise = undefined;
-    }
-  })();
-  return paraformerRecognizerPromise;
-};
-
-const installAndInitializeParaformer = async () => {
-  await ensureParaformerModel();
-  return initializeParaformerRecognizer();
 };
 
 const ensureParaformerModel = async () => {
@@ -443,8 +374,7 @@ ipcMain.handle('speech-model:status', async () => {
   return { ...paraformerDownloadState, directory: getParaformerModelDirectory() };
 });
 
-ipcMain.handle('speech-model:ensure', () => installAndInitializeParaformer());
-ipcMain.handle('speech-recognizer:status', () => ({ ...paraformerRecognizerState }));
+ipcMain.handle('speech-model:ensure', () => ensureParaformerModel());
 
 ipcMain.handle('video:save', async (event, { buffer, filename, directory }) => {
   try {
@@ -600,7 +530,7 @@ app.whenReady().then(async () => {
   createApplicationMenu();
   createMacDockMenu();
   // Ensure the offline streaming Paraformer model is present on first launch.
-  installAndInitializeParaformer().catch(error => console.error('Failed to initialize Paraformer recognizer:', error));
+  ensureParaformerModel().catch(error => console.error('Failed to install Paraformer model:', error));
 
   // 工业级 CORS 解决方案：拦截并修改响应头
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
