@@ -3,9 +3,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import url from 'node:url';
 import crypto from 'node:crypto';
-import { pipeline } from 'node:stream/promises';
-import { promisify } from 'node:util';
-import { execFile } from 'node:child_process';
 import { Readable } from 'node:stream';
 import Store from 'electron-store';
 import started from 'electron-squirrel-startup';
@@ -40,122 +37,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 const store = new Store();
-const execFileAsync = promisify(execFile);
 const saveDirectoryAccessKey = 'saveDirectoryAccess';
 let mainWindow;
-
-const paraformerModelName = 'sherpa-onnx-streaming-paraformer-bilingual-zh-en';
-const paraformerModelUrl = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${paraformerModelName}.tar.bz2`;
-const modelDownloadIdleTimeoutMs = 30_000;
-const getParaformerModelDirectory = () => path.join(app.getPath('userData'), 'models', paraformerModelName);
-let paraformerDownloadPromise;
-let paraformerDownloadState = { status: 'checking', downloadedBytes: 0, totalBytes: 0, error: '' };
-
-const requiredParaformerFiles = ['tokens.txt', 'encoder.int8.onnx', 'decoder.int8.onnx'];
-
-const hasParaformerModel = async (directory = getParaformerModelDirectory()) => {
-  try {
-    const files = await Promise.all(requiredParaformerFiles.map(file => fs.promises.stat(path.join(directory, file))));
-    return files.every(file => file.isFile() && file.size > 0);
-  } catch {
-    return false;
-  }
-};
-
-const publishParaformerDownloadState = () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('speech-model:progress', paraformerDownloadState);
-  }
-};
-
-const ensureParaformerModel = async () => {
-  const paraformerModelDirectory = getParaformerModelDirectory();
-  if (await hasParaformerModel()) {
-    paraformerDownloadState = { status: 'ready', downloadedBytes: 0, totalBytes: 0, error: '' };
-    publishParaformerDownloadState();
-    return { ...paraformerDownloadState, directory: paraformerModelDirectory };
-  }
-  if (paraformerDownloadPromise) return paraformerDownloadPromise;
-
-  paraformerDownloadPromise = (async () => {
-    const modelsDirectory = path.dirname(paraformerModelDirectory);
-    const stagingDirectory = `${paraformerModelDirectory}.download-${process.pid}`;
-    const archivePath = `${stagingDirectory}.tar.bz2`;
-    const controller = new AbortController();
-    let idleTimeout;
-    let downloadTimedOut = false;
-    const resetIdleTimeout = () => {
-      clearTimeout(idleTimeout);
-      idleTimeout = setTimeout(() => {
-        downloadTimedOut = true;
-        controller.abort();
-      }, modelDownloadIdleTimeoutMs);
-    };
-    paraformerDownloadState = { status: 'downloading', downloadedBytes: 0, totalBytes: 0, error: '' };
-    publishParaformerDownloadState();
-
-    try {
-      await fs.promises.mkdir(modelsDirectory, { recursive: true });
-      await fs.promises.rm(stagingDirectory, { recursive: true, force: true });
-      await fs.promises.rm(archivePath, { force: true });
-      resetIdleTimeout();
-      const response = await fetch(paraformerModelUrl, { signal: controller.signal });
-      if (!response.ok || !response.body) throw new Error(`Model download failed (HTTP ${response.status})`);
-      resetIdleTimeout();
-      const totalBytes = Number(response.headers.get('content-length')) || 0;
-      let downloadedBytes = 0;
-      let lastPublishedBytes = 0;
-      let lastPublishedAt = Date.now();
-      const meter = new (await import('node:stream')).Transform({
-        transform(chunk, encoding, callback) {
-          downloadedBytes += chunk.length;
-          resetIdleTimeout();
-          const now = Date.now();
-          if (downloadedBytes - lastPublishedBytes >= 1024 * 1024 || now - lastPublishedAt >= 300) {
-            paraformerDownloadState = { status: 'downloading', downloadedBytes, totalBytes, error: '' };
-            publishParaformerDownloadState();
-            lastPublishedBytes = downloadedBytes;
-            lastPublishedAt = now;
-          }
-          callback(null, chunk);
-        },
-      });
-      await pipeline(response.body, meter, fs.createWriteStream(archivePath), { signal: controller.signal });
-
-      paraformerDownloadState = { status: 'extracting', downloadedBytes, totalBytes, error: '' };
-      publishParaformerDownloadState();
-      await fs.promises.mkdir(stagingDirectory, { recursive: true });
-      await execFileAsync('tar', [
-        '-xjf', archivePath,
-        '-C', stagingDirectory,
-        '--strip-components=1',
-        `${paraformerModelName}/tokens.txt`,
-        `${paraformerModelName}/encoder.int8.onnx`,
-        `${paraformerModelName}/decoder.int8.onnx`,
-      ]);
-      if (!(await hasParaformerModel(stagingDirectory))) throw new Error('Downloaded model is incomplete');
-
-      await fs.promises.rm(paraformerModelDirectory, { recursive: true, force: true });
-      await fs.promises.rename(stagingDirectory, paraformerModelDirectory);
-      paraformerDownloadState = { status: 'ready', downloadedBytes, totalBytes, error: '' };
-      publishParaformerDownloadState();
-      return { ...paraformerDownloadState, directory: paraformerModelDirectory };
-    } catch (error) {
-      await fs.promises.rm(stagingDirectory, { recursive: true, force: true });
-      const message = downloadTimedOut
-        ? `No download data received for ${modelDownloadIdleTimeoutMs / 1000} seconds. Check your internet connection and retry.`
-        : `Could not download the speech model: ${error.message}. Check your internet connection and retry.`;
-      paraformerDownloadState = { status: 'error', downloadedBytes: paraformerDownloadState.downloadedBytes, totalBytes: paraformerDownloadState.totalBytes, error: message };
-      publishParaformerDownloadState();
-      throw new Error(message, { cause: error });
-    } finally {
-      clearTimeout(idleTimeout);
-      await fs.promises.rm(archivePath, { force: true });
-      paraformerDownloadPromise = undefined;
-    }
-  })();
-  return paraformerDownloadPromise;
-};
 
 const normalizeDirectoryAccess = (value) => {
   if (!value) {
@@ -367,15 +250,6 @@ ipcMain.handle('config:set', (event, key, value) => {
   store.set(key, value);
 });
 
-ipcMain.handle('speech-model:status', async () => {
-  if (await hasParaformerModel()) {
-    paraformerDownloadState = { ...paraformerDownloadState, status: 'ready', error: '' };
-  }
-  return { ...paraformerDownloadState, directory: getParaformerModelDirectory() };
-});
-
-ipcMain.handle('speech-model:ensure', () => ensureParaformerModel());
-
 ipcMain.handle('video:save', async (event, { buffer, filename, directory }) => {
   try {
     const filePath = path.join(directory, filename);
@@ -529,8 +403,6 @@ app.whenReady().then(async () => {
   setMacAppIcon();
   createApplicationMenu();
   createMacDockMenu();
-  // Ensure the offline streaming Paraformer model is present on first launch.
-  ensureParaformerModel().catch(error => console.error('Failed to install Paraformer model:', error));
 
   // 工业级 CORS 解决方案：拦截并修改响应头
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
