@@ -26,9 +26,6 @@
           <video ref="videoPreview" autoplay muted playsinline></video>
           <div v-if="isRecording" class="recording-indicator">🔴 Recording</div>
           <div v-if="statusMessage" class="status-message" :class="statusType">{{ statusMessage }}</div>
-          <div v-if="finalizedTranscript || interimTranscript" class="speech-transcript">
-            {{ finalizedTranscript }}<span v-if="interimTranscript" class="transcript-interim">{{ finalizedTranscript ? ' ' : '' }}{{ interimTranscript }}</span>
-          </div>
         </div>
         <OutlinePanel
           v-if="isOutlineOpen"
@@ -64,7 +61,6 @@
 import { ref, onMounted, onUnmounted, onActivated, onDeactivated, computed, watch } from 'vue';
 import dayjs from 'dayjs';
 import OutlinePanel from './OutlinePanel.vue';
-import { SpeechAudioCapture } from '../audio/speech-audio-capture.js';
 
 const props = defineProps({
   saveDirectory: String
@@ -82,16 +78,6 @@ const statusMessage = ref('');
 const statusType = ref('info');
 const filenamePrefix = ref('video');
 const isOutlineOpen = ref(false);
-const finalizedTranscript = ref('');
-const interimTranscript = ref('');
-const speechCapture = new SpeechAudioCapture((result) => {
-  if (result.final) {
-    finalizedTranscript.value = [finalizedTranscript.value, result.text].filter(Boolean).join(' ');
-    interimTranscript.value = '';
-  } else {
-    interimTranscript.value = result.text;
-  }
-}, (error) => showStatus(`Speech recognition error: ${error.message}`, 'error', 5000));
 
 // Devices
 const selectedVideoDeviceId = ref('');
@@ -146,8 +132,6 @@ const startRecording = () => {
   }
 
   recordedChunks.value = [];
-  finalizedTranscript.value = '';
-  interimTranscript.value = '';
   
   // Try to use MP4 format, fallback to WebM if not supported
   let mimeType = 'video/webm;codecs=vp9';
@@ -217,22 +201,16 @@ const startRecording = () => {
   mediaRecorder.value.start();
   isRecording.value = true;
   showStatus('Recording started! 🎬', 'success', 2000);
-  speechCapture.start(stream.value).catch((error) => {
-    console.error('Failed to start speech audio capture:', error);
-    showStatus(`Live transcription unavailable: ${error.message}`, 'error', 6000);
-  });
 };
 
 const stopRecording = () => {
   if (mediaRecorder.value && isRecording.value) {
     showStatus('Processing video...', 'info', 0);
-    speechCapture.stop();
     mediaRecorder.value.stop();
   }
 };
 
 const stopCamera = () => {
-  speechCapture.stop();
   if (stream.value) {
     stream.value.getTracks().forEach(track => track.stop());
   }
@@ -442,27 +420,6 @@ onUnmounted(() => {
   border-radius: 8px;
   overflow: hidden;
   aspect-ratio: 16/9;
-}
-
-.speech-transcript {
-  position: absolute;
-  left: 5%;
-  right: 5%;
-  bottom: 20px;
-  z-index: 2;
-  padding: 10px 14px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.68);
-  color: white;
-  text-align: center;
-  font-size: 1rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-}
-
-.transcript-interim {
-  color: #d1d5db;
 }
 
 .outline-overlay {
