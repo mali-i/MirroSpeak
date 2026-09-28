@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { Readable, Transform } from 'node:stream';
+import { Readable } from 'node:stream';
 import Store from 'electron-store';
 import started from 'electron-squirrel-startup';
 
@@ -132,6 +132,11 @@ const initializeParaformerRecognizer = async () => {
   return paraformerRecognizerPromise;
 };
 
+const installAndInitializeParaformer = async () => {
+  await ensureParaformerModel();
+  return initializeParaformerRecognizer();
+};
+
 const ensureParaformerModel = async () => {
   const paraformerModelDirectory = getParaformerModelDirectory();
   if (await hasParaformerModel()) {
@@ -170,7 +175,7 @@ const ensureParaformerModel = async () => {
       let downloadedBytes = 0;
       let lastPublishedBytes = 0;
       let lastPublishedAt = Date.now();
-      const meter = new Transform({
+      const meter = new (await import('node:stream')).Transform({
         transform(chunk, encoding, callback) {
           downloadedBytes += chunk.length;
           resetIdleTimeout();
@@ -219,11 +224,6 @@ const ensureParaformerModel = async () => {
     }
   })();
   return paraformerDownloadPromise;
-};
-
-const installAndInitializeParaformer = async () => {
-  await ensureParaformerModel();
-  return initializeParaformerRecognizer();
 };
 
 const normalizeDirectoryAccess = (value) => {
@@ -446,7 +446,8 @@ ipcMain.handle('speech-model:status', async () => {
 ipcMain.handle('speech-model:ensure', () => installAndInitializeParaformer());
 ipcMain.handle('speech-recognizer:status', () => ({ ...paraformerRecognizerState }));
 
-const speechSessions = new Map();
+const speechStreams = new Map();
+const lastSpeechTexts = new Map();
 const sendSpeechMessage = (webContents, message) => {
   if (!webContents.isDestroyed()) webContents.send('speech-recognition:message', message);
 };
@@ -460,21 +461,19 @@ ipcMain.on('speech-audio:frame', (event, { samples, sampleRate }) => {
 
   try {
     const id = event.sender.id;
-    let speechSession = speechSessions.get(id);
-    if (!speechSession) {
-      speechSession = { stream: paraformerRecognizer.createStream(), lastText: '' };
-      speechSessions.set(id, speechSession);
-      event.sender.once('destroyed', () => speechSessions.delete(id));
+    let stream = speechStreams.get(id);
+    if (!stream) {
+      stream = paraformerRecognizer.createStream();
+      speechStreams.set(id, stream);
     }
-    const { stream } = speechSession;
     stream.acceptWaveform({ samples, sampleRate });
     while (paraformerRecognizer.isReady(stream)) paraformerRecognizer.decode(stream);
 
     const text = paraformerRecognizer.getResult(stream).text;
     const final = paraformerRecognizer.isEndpoint(stream);
-    if (text && (text !== speechSession.lastText || final)) {
+    if (text && (text !== lastSpeechTexts.get(id) || final)) {
       sendSpeechMessage(event.sender, { type: 'result', text, final });
-      speechSession.lastText = final ? '' : text;
+      lastSpeechTexts.set(id, final ? '' : text);
     }
     if (final) paraformerRecognizer.reset(stream);
   } catch (error) {
@@ -484,10 +483,9 @@ ipcMain.on('speech-audio:frame', (event, { samples, sampleRate }) => {
 
 ipcMain.on('speech-audio:finish', (event) => {
   const id = event.sender.id;
-  const speechSession = speechSessions.get(id);
+  const stream = speechStreams.get(id);
   try {
-    if (speechSession && paraformerRecognizer) {
-      const { stream } = speechSession;
+    if (stream && paraformerRecognizer) {
       stream.inputFinished();
       while (paraformerRecognizer.isReady(stream)) paraformerRecognizer.decode(stream);
       const text = paraformerRecognizer.getResult(stream).text;
@@ -497,7 +495,8 @@ ipcMain.on('speech-audio:finish', (event) => {
   } catch (error) {
     sendSpeechMessage(event.sender, { type: 'error', message: error.message });
   } finally {
-    speechSessions.delete(id);
+    speechStreams.delete(id);
+    lastSpeechTexts.delete(id);
     sendSpeechMessage(event.sender, { type: 'finished' });
   }
 });

@@ -74,6 +74,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import Recorder from './components/Recorder.vue';
 import VideoGallery from './components/VideoGallery.vue';
 import Settings from './components/Settings.vue';
+import appIcon from '../assets/icons/icon.png';
 
 const saveDirectoryAccess = ref(null);
 const galleryRef = ref(null);
@@ -85,7 +86,18 @@ let unsubscribeSpeechRecognizerStatus;
 const saveDirectory = computed(() => saveDirectoryAccess.value?.path || '');
 
 const onVideoSaved = () => {
-  galleryRef.value?.refresh();
+    // Optional: Switch to gallery view after saving, or just notify
+    // currentView.value = 'gallery';
+    // If we are in gallery view (unlikely if we just recorded), refresh it
+    if (galleryRef.value) {
+        galleryRef.value.refresh();
+    }
+};
+
+const refreshGallery = () => {
+    if (galleryRef.value) {
+        galleryRef.value.refresh();
+    }
 };
 
 const updateSaveDirectoryAccess = (value) => {
@@ -94,9 +106,14 @@ const updateSaveDirectoryAccess = (value) => {
 
 const retrySpeechModelDownload = async () => {
   try {
-    await window.electronAPI.ensureSpeechModel();
-  } catch {
-    // The model and recognizer status events provide the user-facing error state.
+    speechRecognizerStatus.value = { ...(await window.electronAPI.ensureSpeechModel()) };
+    speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
+  } catch (error) {
+    speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
+    speechRecognizerStatus.value = await window.electronAPI.getSpeechRecognizerStatus();
+    if (speechModelStatus.value.status !== 'error' && speechRecognizerStatus.value.status !== 'error') {
+      speechRecognizerStatus.value = { status: 'error', error: error.message };
+    }
   }
 };
 
@@ -109,6 +126,9 @@ onMounted(async () => {
   });
   speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
   speechRecognizerStatus.value = await window.electronAPI.getSpeechRecognizerStatus();
+  if (speechModelStatus.value.status !== 'ready' || speechRecognizerStatus.value.status !== 'ready') {
+    retrySpeechModelDownload();
+  }
 
   const savedAccess = await window.electronAPI.getConfig('saveDirectoryAccess');
   if (savedAccess?.path) {
