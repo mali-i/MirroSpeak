@@ -9,16 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setConfig: (key, value) => ipcRenderer.invoke('config:set', key, value),
   getSpeechModelStatus: () => ipcRenderer.invoke('speech-model:status'),
   ensureSpeechModel: () => ipcRenderer.invoke('speech-model:ensure'),
-  getSpeechRecognizerStatus: () => ipcRenderer.invoke('speech-recognizer:status'),
   onSpeechModelProgress: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on('speech-model:progress', listener);
     return () => ipcRenderer.removeListener('speech-model:progress', listener);
-  },
-  onSpeechRecognizerStatus: (callback) => {
-    const listener = (_event, state) => callback(state);
-    ipcRenderer.on('speech-recognizer:status', listener);
-    return () => ipcRenderer.removeListener('speech-recognizer:status', listener);
   },
   saveVideo: (data) => ipcRenderer.invoke('video:save', data),
   getVideos: (directory) => ipcRenderer.invoke('video:list', directory),

@@ -42,11 +42,6 @@
           <span v-else>Preparing offline speech model…</span>
           <button v-if="speechModelStatus.status === 'error'" @click="retrySpeechModelDownload">Retry</button>
         </div>
-        <div v-else-if="speechRecognizerStatus.status !== 'ready'" class="model-download-banner" :class="speechRecognizerStatus.status">
-          <span v-if="speechRecognizerStatus.status === 'error'">Speech recognizer failed to load: {{ speechRecognizerStatus.error }}</span>
-          <span v-else>Loading offline speech recognizer…</span>
-          <button v-if="speechRecognizerStatus.status === 'error'" @click="retrySpeechModelDownload">Retry</button>
-        </div>
         <KeepAlive>
           <Recorder 
             v-if="currentView === 'record'" 
@@ -80,9 +75,7 @@ const saveDirectoryAccess = ref(null);
 const galleryRef = ref(null);
 const currentView = ref('record');
 const speechModelStatus = ref({ status: 'checking', downloadedBytes: 0, totalBytes: 0, error: '' });
-const speechRecognizerStatus = ref({ status: 'waiting', error: '' });
 let unsubscribeSpeechModelProgress;
-let unsubscribeSpeechRecognizerStatus;
 const saveDirectory = computed(() => saveDirectoryAccess.value?.path || '');
 
 const onVideoSaved = () => {
@@ -106,14 +99,9 @@ const updateSaveDirectoryAccess = (value) => {
 
 const retrySpeechModelDownload = async () => {
   try {
-    speechRecognizerStatus.value = { ...(await window.electronAPI.ensureSpeechModel()) };
-    speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
+    speechModelStatus.value = { ...(await window.electronAPI.ensureSpeechModel()) };
   } catch (error) {
-    speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
-    speechRecognizerStatus.value = await window.electronAPI.getSpeechRecognizerStatus();
-    if (speechModelStatus.value.status !== 'error' && speechRecognizerStatus.value.status !== 'error') {
-      speechRecognizerStatus.value = { status: 'error', error: error.message };
-    }
+    speechModelStatus.value = { status: 'error', error: error.message };
   }
 };
 
@@ -121,12 +109,8 @@ onMounted(async () => {
   unsubscribeSpeechModelProgress = window.electronAPI.onSpeechModelProgress((state) => {
     speechModelStatus.value = state;
   });
-  unsubscribeSpeechRecognizerStatus = window.electronAPI.onSpeechRecognizerStatus((state) => {
-    speechRecognizerStatus.value = state;
-  });
   speechModelStatus.value = await window.electronAPI.getSpeechModelStatus();
-  speechRecognizerStatus.value = await window.electronAPI.getSpeechRecognizerStatus();
-  if (speechModelStatus.value.status !== 'ready' || speechRecognizerStatus.value.status !== 'ready') {
+  if (speechModelStatus.value.status !== 'ready') {
     retrySpeechModelDownload();
   }
 
@@ -142,10 +126,7 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
-  unsubscribeSpeechModelProgress?.();
-  unsubscribeSpeechRecognizerStatus?.();
-});
+onUnmounted(() => unsubscribeSpeechModelProgress?.());
 </script>
 
 <style>
