@@ -3,7 +3,7 @@
     <aside class="sidebar">
       <div class="brand">
         <h1>
-          <span>Video Log</span>
+          <span>VideoLog</span>
         </h1>
       </div>
       <nav class="nav-menu">
