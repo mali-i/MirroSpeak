@@ -11,7 +11,7 @@
 
 ### 本地语音模型
 
-应用首次启动时会从 sherpa-onnx 官方 GitHub Release 下载流式 Paraformer 中英双语模型，并安装到 Electron `userData/models/sherpa-onnx-streaming-paraformer-bilingual-zh-en` 目录。录制期间，应用会从当前麦克风轨道另取 PCM 音频，在本地进行流式识别；停止录制后，会在视频所在目录生成同名 `.txt` 转写文档。模型下载或识别器初始化失败时，应用会显示错误和重试入口。
+应用首次启动时会从 sherpa-onnx 官方 GitHub Release 下载流式 Paraformer 中英双语模型，并安装到 Electron `userData/models/sherpa-onnx-streaming-paraformer-bilingual-zh-en` 目录。录制期间，应用会从当前麦克风轨道另取 PCM 音频，在本地进行流式识别并显示字幕。模型下载或识别器初始化失败时，应用会显示错误和重试入口。
 
 ## 🛠️ 技术栈
 

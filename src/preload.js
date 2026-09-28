@@ -28,7 +28,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('speech-recognition:message', listener);
   },
   saveVideo: (data) => ipcRenderer.invoke('video:save', data),
-  saveTranscript: (data) => ipcRenderer.invoke('transcript:save', data),
   getVideos: (directory) => ipcRenderer.invoke('video:list', directory),
   renameVideo: (data) => ipcRenderer.invoke('video:rename', data),
   deleteVideo: (data) => ipcRenderer.invoke('video:delete', data),
