@@ -81,9 +81,6 @@ const filenamePrefix = ref('video');
 const isOutlineOpen = ref(false);
 const finalizedTranscript = ref('');
 const interimTranscript = ref('');
-let speechStopPromise;
-let recordingBaseName = '';
-let recordingStartedAt = '';
 const speechCapture = new SpeechAudioCapture((result) => {
   if (result.final) {
     finalizedTranscript.value = [finalizedTranscript.value, result.text].filter(Boolean).join(' ');
@@ -112,15 +109,6 @@ const showStatus = (message, type = 'info', duration = 3000) => {
       statusMessage.value = '';
     }, duration);
   }
-};
-
-const stopSpeechCapture = () => {
-  if (!speechStopPromise) {
-    speechStopPromise = speechCapture.stop().catch((error) => {
-      console.warn('Failed to finish speech recognition:', error);
-    });
-  }
-  return speechStopPromise;
 };
 
 const startCamera = async () => {
@@ -157,9 +145,6 @@ const startRecording = () => {
   recordedChunks.value = [];
   finalizedTranscript.value = '';
   interimTranscript.value = '';
-  speechStopPromise = undefined;
-  recordingStartedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-  recordingBaseName = `${filenamePrefix.value.trim() || 'video'}_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}`;
   
   // Try to use MP4 format, fallback to WebM if not supported
   let mimeType = 'video/webm;codecs=vp9';
@@ -204,53 +189,20 @@ const startRecording = () => {
     try {
       const blob = new Blob(recordedChunks.value, { type: mimeType });
       const buffer = await blob.arrayBuffer();
-      await stopSpeechCapture();
-
-      const transcript = [finalizedTranscript.value, interimTranscript.value].filter(Boolean).join(' ').trim();
-      const filename = `${recordingBaseName}.${fileExtension}`;
+      const prefix = filenamePrefix.value.trim() || 'video';
+      const filename = `${prefix}_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.${fileExtension}`;
       
-      let result;
-      try {
-        result = await window.electronAPI.saveVideo({
-          buffer,
-          filename,
-          directory: props.saveDirectory
-        });
-      } catch (error) {
-        result = { success: false, error: error.message };
-      }
+      const result = await window.electronAPI.saveVideo({
+        buffer,
+        filename,
+        directory: props.saveDirectory
+      });
       
       if (result.success) {
+        showStatus('Video saved successfully! ✅', 'success', 3000);
         emit('video-saved');
-      }
-
-      let transcriptResult;
-      if (transcript) {
-        const documentText = `MirroSpeak Transcript\nRecording time: ${recordingStartedAt}\n\n${transcript}\n`;
-        try {
-          transcriptResult = await window.electronAPI.saveTranscript({
-            text: documentText,
-            filename: `${recordingBaseName}.txt`,
-            directory: props.saveDirectory,
-          });
-        } catch (error) {
-          transcriptResult = { success: false, error: error.message };
-        }
-      }
-
-      if (!result.success) {
-        const transcriptNotice = transcriptResult?.success
-          ? ' Transcript saved.'
-          : transcriptResult
-            ? ` Transcript save failed: ${transcriptResult.error}.`
-            : '';
-        showStatus(`Failed to save video: ${result.error}.${transcriptNotice}`, 'error', 5000);
-      } else if (transcriptResult?.success) {
-        showStatus('Video and transcript saved ✅', 'success', 3000);
-      } else if (transcriptResult && !transcriptResult.success) {
-        showStatus(`Video saved, but transcript document failed: ${transcriptResult.error}`, 'error', 5000);
       } else {
-        showStatus('Video saved. No transcript was recognized.', 'info', 4000);
+        showStatus(`Failed to save video: ${result.error}`, 'error', 5000);
       }
     } finally {
       recordedChunks.value = [];
@@ -271,12 +223,13 @@ const startRecording = () => {
 const stopRecording = () => {
   if (mediaRecorder.value && isRecording.value) {
     showStatus('Processing video...', 'info', 0);
+    speechCapture.stop();
     mediaRecorder.value.stop();
   }
 };
 
 const stopCamera = () => {
-  stopSpeechCapture();
+  speechCapture.stop();
   if (stream.value) {
     stream.value.getTracks().forEach(track => track.stop());
   }
