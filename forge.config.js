@@ -28,13 +28,13 @@ module.exports = {
     asar: {
       unpack: 'node_modules/sherpa-onnx-*/**/*',
     },
-    executableName: 'VideoLog',
+    executableName: 'MirroSpeak',
     appBundleId: 'cn.com.mirrospeak',
     buildVersion,
     icon: path.join(__dirname, 'assets', 'icons', 'icon'),
     extendInfo: {
-      CFBundleName: 'VideoLog',
-      CFBundleDisplayName: 'VideoLog',
+      CFBundleName: 'MirroSpeak',
+      CFBundleDisplayName: 'MirroSpeak',
       ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: 'Application needs access to the camera for video recording.',
       NSMicrophoneUsageDescription: 'Application needs access to the microphone for audio recording.',
