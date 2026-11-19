@@ -1,11 +1,17 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-export async function fingerprint(filePath, signal) {
+export async function fingerprint(filePath, signal, onProgress) {
   const before = await fs.promises.stat(filePath);
   if (!before.isFile()) throw new Error('请选择视频文件。');
   const hash = crypto.createHash('sha256');
-  for await (const chunk of fs.createReadStream(filePath, { signal })) hash.update(chunk);
+  let read = 0, updated = 0;
+  for await (const chunk of fs.createReadStream(filePath, { signal })) {
+    hash.update(chunk); read += chunk.length;
+    if (onProgress && (Date.now() - updated > 200 || read === before.size)) {
+      onProgress({ current: read, total: before.size, percent: before.size ? read / before.size * 100 : 100 }); updated = Date.now();
+    }
+  }
   const after = await fs.promises.stat(filePath);
   if (before.size !== after.size || before.mtimeMs !== after.mtimeMs) throw new Error('视频在读取时发生变化，请重试。');
   return hash.digest('hex');

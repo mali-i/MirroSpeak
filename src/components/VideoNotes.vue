@@ -10,11 +10,12 @@
           <button v-if="record" :disabled="busy" @click="relink">重新定位</button>
           <div class="consent">
             <strong>生成忠实梳理的个人笔记</strong>
-            <p>将完整视频及音轨发送至 {{ endpoint }}，使用设置中已保存的 Key 和模型，可能产生费用。结果和编辑保存在本机。首版上限 15 分钟 / 2 GB。</p>
+            <p>将视频及音轨发送至 {{ endpoint }}，使用设置中已保存的 Key 和模型，可能产生费用。内联模式下较大视频会使用本机 ffmpeg 压缩副本（最大 320 像素、每秒 2 帧，保留完整音轨和时间轴），原片不变。结果和编辑保存在本机。首版上限 15 分钟 / 2 GB。</p>
             <label><input v-model="consent" type="checkbox" :disabled="busy" /> 我同意本次上传和分析</label>
             <button :disabled="busy || loading || !consent || !duration || record?.missing" @click="analyze">{{ report ? '重新分析（新增版本）' : '生成个人笔记' }}</button>
-            <button v-if="busy" @click="cancel">取消任务</button>
+            <button v-if="busy" :disabled="cancelRequested" @click="cancel">{{ cancelRequested ? '正在取消…' : '取消任务' }}</button>
           </div>
+          <AnalysisProgress v-if="task" :task="task" />
           <p role="status">{{ status }}</p><p v-if="error" role="alert" class="error">{{ error }}</p>
         </div>
         <div class="report-pane">
@@ -28,7 +29,7 @@
               <button :disabled="editing" @click="exportNotes">导出 Markdown</button>
             </div>
             <h2>{{ report.title }}</h2><p class="prose">{{ report.summary }}</p>
-            <small>{{ report.model }} · 时间点由模型生成，请回看核实。图片来自原视频，正文为整理文字。</small>
+            <small>{{ report.model }} · {{ report.inputMode === 'inline' ? (report.compressed ? '内联压缩视频 · ' : '内联原视频 · ') : '' }} 时间点由模型生成，请回看核实。图片来自原视频，正文为整理文字。</small>
             <h3>章节</h3>
             <article v-for="(item, index) in report.chapters" :key="index">
               <button class="timestamp" :disabled="record.missing" @click="seek(item.startMs)">{{ time(item.startMs) }}–{{ time(item.endMs) }}</button>
@@ -52,6 +53,9 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import VideoFrame from './VideoFrame.vue';
+import AnalysisProgress from './AnalysisProgress.vue';
+import { applyProgress } from '../ai/progress.mjs';
+const task = ref(null), cancelRequested = ref(false);
 const props = defineProps({ video: { type: Object, required: true } });
 const emit = defineEmits(['close', 'updated']);
 const record = ref(null), player = ref(null), duration = ref(0), version = ref(''), busy = ref(false), loading = ref(true), consent = ref(false), status = ref(''), error = ref(''), editing = ref(false), saving = ref(false), draft = ref([]);
@@ -69,17 +73,18 @@ function close() { if (busy.value) { error.value = '请先取消任务，等待�
 async function relink() { if (editing.value && !window.confirm('放弃尚未保存的修改并重新定位？')) return; try { const value = await call('relink', { id: record.value.id }); if (value) { editing.value = false; assign(value); duration.value = 0; error.value = ''; emit('updated'); } } catch (e) { error.value = e.message; } }
 async function analyze() {
   if (editing.value) { error.value = '请先保存或放弃笔记修改。'; return; }
-  busy.value = true; error.value = ''; status.value = '正在准备…';
-  try { const value = await call('analyze', { filePath: record.value.path, duration: duration.value }); if (mounted) { assign(value); if (!status.value.includes('清理失败')) status.value = '笔记已保存。'; emit('updated'); } }
-  catch (e) { if (mounted) { error.value = e.message; status.value = ''; } }
+  busy.value = true; cancelRequested.value = false; error.value = ''; status.value = '';
+  task.value = applyProgress(null, { stage: 'validate', status: 'running', startedAt: Date.now(), message: '正在准备分析任务…' });
+  try { const value = await call('analyze', { filePath: record.value.path, duration: duration.value }); if (mounted) { assign(value); if (task.value?.status !== 'complete') task.value = applyProgress(task.value, { stage: 'complete', status: 'complete', message: '个人笔记已保存。', finishedAt: Date.now() }); emit('updated'); } }
+  catch (e) { if (mounted) { if (task.value?.status !== 'cancelled') error.value = e.message; if (task.value?.status === 'running') task.value = applyProgress(task.value, { status: 'failed', message: '处理未完成，请查看下方错误。', finishedAt: Date.now() }); status.value = ''; } }
   finally { busy.value = false; consent.value = false; }
 }
-async function cancel() { try { await call('cancel'); status.value = '正在取消并清理远端文件…'; } catch (e) { error.value = e.message; } }
+async function cancel() { cancelRequested.value = true; try { await call('cancel'); if (busy.value && task.value?.status === 'running') task.value = applyProgress(task.value, { message: '正在停止任务并清理临时文件，请稍候…' }); } catch (e) { error.value = e.message; cancelRequested.value = false; } }
 function edit() { draft.value = report.value.notes.map(item => item.text); editing.value = true; }
 async function save() { saving.value = true; try { const id = version.value; record.value = await call('save', { id: record.value.id, reportId: id, notes: [...draft.value] }); editing.value = false; status.value = '笔记修改已保存。'; } catch (e) { error.value = e.message; } finally { saving.value = false; } }
 async function exportNotes() { try { if (await call('export', { id: record.value.id, reportId: version.value })) status.value = 'Markdown 已导出。'; } catch (e) { error.value = e.message; } }
 async function saveFrame(index, image) { try { await call('frame', { id: record.value.id, reportId: version.value, index, image }); } catch (e) { error.value = `画面保存失败：${e.message}`; } }
-const unsubscribe = window.electronAPI.onAIProgress(message => { status.value = message; });
+const unsubscribe = window.electronAPI.onAIProgress(update => { if (!busy.value) return; if (typeof update === 'string') task.value = applyProgress(task.value, { message: update }); else task.value = applyProgress(task.value, update); });
 onMounted(async () => { try { const settings = await call('settings'); endpoint.value = settings.baseUrl || 'https://generativelanguage.googleapis.com'; assign(await call('open', props.video.id ? { id: props.video.id } : { filePath: props.video.path })); } catch (e) { error.value = e.message; } finally { loading.value = false; } });
 onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.electronAPI.ai('cancel'); });
 </script>

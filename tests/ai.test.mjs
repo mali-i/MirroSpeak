@@ -65,7 +65,9 @@ test('Gemini file upload, structured generation and explicit deletion', async ()
     assert.equal(report.usage.totalTokenCount, 100);
     await removeRemote('test-key', name);
     assert.equal(calls.length, 4);
-    assert.equal(progress.length, 3);
+    assert(progress.some(event => event.stage === 'upload'));
+    assert(progress.some(event => event.stage === 'analyze'));
+    assert(progress.every(event => typeof event.message === 'string'));
   } finally { globalThis.fetch = originalFetch; await fs.rm(dir, { recursive: true, force: true }); }
 });
 test('API errors are actionable and do not expose response contents or key', async () => {

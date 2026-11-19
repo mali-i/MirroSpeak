@@ -31,3 +31,51 @@ test('network diagnostics distinguish failures and never expose credentials or r
   const aborted = new DOMException('cancelled', 'AbortError');
   assert.equal(networkError(aborted, 'https://relay.example'), aborted);
 });
+
+// Electron net.fetch rejects redirects even with redirect: "manual".
+test('Electron cancelled redirects are not reported as unknown network errors', () => {
+  const result = networkError(new Error('Redirect was cancelled'), 'https://api.teamorouter.com/upload/v1beta/files');
+  assert.equal(result.code, 'REDIRECT_BLOCKED');
+  assert.match(result.message, /重定向/);
+  assert(!result.message.includes('NETWORK_ERROR'));
+});
+
+test('native Chromium path returns redirect status without following or forwarding credentials', async () => {
+  const { EventEmitter } = await import('node:events');
+  let forwarded = false;
+  const transport = createElectronFetch(() => { throw new Error('opaque fetch should not run'); }, options => {
+    assert.equal(options.redirect, 'manual');
+    assert.equal(options.useSessionCookies, false);
+    const req = new EventEmitter();
+    req.setHeader = () => {};
+    req.followRedirect = () => { forwarded = true; };
+    req.abort = () => req.emit('abort');
+    req.end = () => queueMicrotask(() => req.emit('redirect', 301, 'POST', 'https://other.example/upload?secret=hidden'));
+    return req;
+  });
+  const response = await transport('https://relay.example/upload', { method: 'POST', body: '{}', headers: { Authorization: 'Bearer private-key' } });
+  assert.equal(response.status, 301);
+  assert.equal(new URL(response.headers.get('location')).hostname, 'other.example');
+  assert.equal(forwarded, false);
+});
+test('native Chromium path preserves response status/body and abort reasons', async () => {
+  const { EventEmitter } = await import('node:events');
+  const transport = createElectronFetch(null, () => {
+    const req = new EventEmitter();
+    req.setHeader = () => {};
+    req.abort = () => req.emit('abort');
+    req.end = () => queueMicrotask(() => {
+      const res = new EventEmitter();
+      res.statusCode = 404; res.headers = { 'content-type': ['application/json'] };
+      req.emit('response', res);
+      res.emit('data', Buffer.from('{"error":"not found"}'));
+      res.emit('end');
+    });
+    return req;
+  });
+  const response = await transport('https://relay.example/upload');
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).error, 'not found');
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(transport('https://relay.example/upload', { signal: controller.signal }), { name: 'AbortError' });
+});

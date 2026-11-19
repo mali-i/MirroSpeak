@@ -29,7 +29,8 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     } }] });
     const { registerAI, movedVideo } = await import(path.join(dir, 'main.mjs'));
     registerAI({ withDirectoryAccess: async (_path, fn) => fn(), getDirectoryAccessForPath: target => target.startsWith(dir) ? { path: dir } : null });
-    const invoke = async (action, data) => globalThis.__aiTest.handlers.get(`ai:${action}`)({ sender: { isDestroyed: () => false, send() {} } }, data);
+    const events = [];
+    const invoke = async (action, data) => globalThis.__aiTest.handlers.get(`ai:${action}`)({ sender: { isDestroyed: () => false, send(_channel, event) { events.push(event); } } }, data);
     assert.equal((await invoke('settings')).data.hasKey, false);
     assert.equal((await invoke('configure', { apiKey: 'private-key', model: 'gemini-test' })).success, true);
     assert.equal(JSON.stringify((await invoke('settings')).data).includes('private-key'), false);
@@ -49,6 +50,10 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     };
     const analyzed = await invoke('analyze', { filePath, duration: 10 });
     assert.equal(analyzed.success, true, analyzed.error);
+    assert.equal(events.at(-1).status, 'complete');
+    assert(events.some(event => event.stage === 'save'));
+    assert(events.some(event => event.stage === 'cleanup'));
+    assert(events.at(-1).finishedAt >= events[0].startedAt);
     const first = analyzed.data.reports[0];
     assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 0);
     await invoke('save', { id: original.id, reportId: first.id, notes: ['用户修改过的内容'] });
@@ -56,6 +61,8 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     globalThis.__aiTest.cleanupFails = true;
     const second = await invoke('analyze', { filePath: moved, duration: 10 });
     assert.equal(second.success, true, second.error);
+    assert.equal(events.at(-1).status, 'complete');
+    assert.match(events.at(-1).warning, /清理失败/);
     assert.equal(second.data.id, original.id);
     assert.equal(second.data.reports.length, 2);
     assert.equal(second.data.reports[0].notes[0].text, '用户修改过的内容');

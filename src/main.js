@@ -244,7 +244,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
   };
 });
 
-registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fetch: createElectronFetch((input, init) => net.fetch(input, init)) });
+registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fetch: createElectronFetch((input, init) => net.fetch(input, init), options => net.request(options)) });
 
 ipcMain.handle('config:get', (event, key) => {
   return store.get(key);

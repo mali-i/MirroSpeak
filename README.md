@@ -60,7 +60,7 @@ npm run upload
 ## AI 个人笔记（BYOK MVP）
 
 1. 在 **Settings → AI 个人笔记** 填写 API Base URL 和自己的 Gemini API Key，保存并测试连接。默认模型为 `gemini-3.8-flash`，可修改为账户可访问、支持视频和结构化输出的 Gemini 模型。
-2. 在 **Gallery** 打开视频，勾选本次上传说明后生成笔记。完整视频与音轨直接发送至所配置的 API 服务；费用记在用户的 API 账户，应用没有代理计费服务。
+2. 在 **Gallery** 打开视频，勾选本次上传说明后生成笔记。视频与音轨直接发送至所配置的 API 服务（内联模式可能使用本地压缩副本）；费用记在用户的 API 账户，应用没有代理计费服务。
 3. 查看概览、章节、观点素材与忠实梳理的个人笔记。点击时间点回看；前六个章节的画面在播放器加载后提取并保存在本机。笔记支持编辑与 Markdown 导出（当前导出文字和时间点）。
 4. 重新分析会新增报告版本，保留之前的编辑。在“已保存的个人笔记”中可以打开历史报告。
 
@@ -68,15 +68,25 @@ npm run upload
 
 默认使用 `https://generativelanguage.googleapis.com`。中转站可填写服务根地址（例如 `https://relay.example/gemini`），也可粘贴以 `/v1beta` 结尾的地址；应用会保留路径前缀并拼接 Gemini API 路径。支持 HTTPS，本机 localhost 服务可用 HTTP。
 
-中转站必须支持 Gemini 原生协议：模型查询、`upload/v1beta/files` 可恢复上传、文件状态/删除、`v1beta/models/{model}:generateContent` 和结构化 JSON 输出。官方及通用 Gemini 代理使用 `x-goog-api-key`；TeamoRouter 自动使用文档要求的 `Authorization: Bearer`，并通过 `/v1/models` 测试 Key 和模型目录；仅提供 OpenAI Chat Completions 兼容接口的服务暂不支持。上传会话必须返回同源地址，应用不会携带 Key 跟随 HTTP 重定向。
+中转站必须支持 Gemini 原生 `generateContent` 和结构化 JSON 输出。Files 模式另需支持 `upload/v1beta/files` 可恢复上传、文件状态与删除；内联模式无需 Files API。官方及通用 Gemini 代理使用 `x-goog-api-key`；TeamoRouter 自动使用文档要求的 `Authorization: Bearer`，并通过 `/v1/models` 测试 Key 和模型目录；仅提供 OpenAI Chat Completions 兼容接口的服务暂不支持。上传会话必须返回同源地址，应用不会携带 Key 跟随 HTTP 重定向。
 
 更换 Base URL 时需要重新输入对应 Key。远端清理记录保留上传时的服务地址，只有配置回对应地址和 Key 后才重试，不会把旧服务的清理请求转发给新服务。
 
 ### TeamoRouter
 
-可点击设置中的“使用 TeamoRouter 地址”，或填写 `https://api.teamorouter.com`（不加 `/v1`），模型填写服务商目录中的 Gemini 模型 ID。基础连接仅查询模型目录，不生成内容、不发送视频，不能证明视频能力可用。接入文档列出了 Gemini `generateContent`，但未说明 Gemini Files 上传、状态查询及删除支持；整段视频分析仍需进一步实测确认，不应将目录查询成功视为视频接入成功。
+可点击设置中的“使用 TeamoRouter 地址”，或填写 `https://api.teamorouter.com`（不加 `/v1`），模型填写服务商目录中的 Gemini 模型 ID。基础连接仅查询模型目录，不生成内容、不发送视频，不能证明视频能力可用。自动模式对 TeamoRouter 使用内联视频，直接通过 `generateContent` 提交，不再依赖会重定向的 Files 上传路径。接入文档未明确保证内联视频及结构化输出兼容性，仍需真实账户实测，不应将目录查询成功视为视频接入成功。
 
 来源：[TeamoRouter API 接入文档](https://teamorouter.com/docs/api-integration)。
+
+### 视频提交方式
+
+设置可选自动、内联视频和 Files API。自动模式下 TeamoRouter 使用内联，其余地址保持 Files 模式；也可手动选择。内联视频体积不超过 12 MiB 时直接编码提交，较大文件使用已安装的系统 `ffmpeg` 压缩临时副本，目标最大 320 像素、每秒 2 帧，完整时间轴和音频时长保留。音频会转为单声道 16 kHz AAC（32 kbps），快速动作和细小视觉内容可能丢失。原片不变，临时副本在完成、失败或取消后清理。
+
+内联 JSON 请求受应用的 20 MiB 上限约束，超过上限不发送；中转站可能有更低的限制。未找到 `ffmpeg` 时，大视频会显示依赖缺失提示；无需压缩的小视频仍可直接提交。当前未把 ffmpeg 打包进应用，分发版本尤其是 MAS 仍需另行解决工具打包与沙箱兼容性。
+
+### 分析进度
+
+播放器中显示校验、素材准备、上传、理解整理、保存和清理的阶段状态及累计用时。视频指纹读取和 ffmpeg 压缩显示当前阶段的实际比例；内联请求通过 Electron 上传字节数显示传输进度，发送完成后切换为模型等待状态。Files 流式传输未提供实时比例时显示活动状态和体积，不虚构整体完成百分比。失败保留失败阶段，取消后等待临时文件清理；清理警告与已保存的报告分开显示。
 
 ### 网络连接
 

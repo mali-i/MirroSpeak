@@ -22,7 +22,7 @@ const key = () => {
 const configuredBaseUrl = () => normalizeBaseUrl(database.get('baseUrl', DEFAULT_BASE_URL));
 // Older cleanup entries were uploaded to the official service. Never reroute them to a new proxy.
 const pendingCleanup = () => database.get('pendingCleanup', []).map(item => typeof item === 'string' ? { name: item, baseUrl: DEFAULT_BASE_URL } : item);
-const publicSettings = () => ({ baseUrl: configuredBaseUrl(), model: database.get('model', 'gemini-3.8-flash'), hasKey: !!database.get('encryptedKey'), secureStorage: safeStorage.isEncryptionAvailable() });
+const publicSettings = () => ({ baseUrl: configuredBaseUrl(), inputMode: database.get('inputMode', 'auto'), model: database.get('model', 'gemini-3.8-flash'), hasKey: !!database.get('encryptedKey'), secureStorage: safeStorage.isEncryptionAvailable() });
 export function movedVideo(sourcePath, targetPath) {
   for (const record of records()) {
     if (record.path === sourcePath) writeRecord({ ...record, path: targetPath, name: path.basename(targetPath) });
@@ -42,10 +42,10 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     if (!getDirectoryAccessForPath(resolved) && !linkedAccess(resolved)) throw new Error('请在视频库中选择视频或使用“重新定位”授权文件。');
     return resolved;
   };
-  const resolve = async (target, signal) => {
+  const resolve = async (target, signal, onProgress) => {
     return withDirectoryAccess(target, async () => {
       const filePath = await checkedPath(target);
-      const hash = await fingerprint(filePath, signal);
+      const hash = await fingerprint(filePath, signal, onProgress);
       const record = identify(records(), hash, filePath);
       record.name = path.basename(filePath);
       writeRecord(record);
@@ -62,9 +62,10 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     return remaining.length;
   };
   handle('settings', () => publicSettings());
-  handle('configure', ({ apiKey, model, baseUrl = DEFAULT_BASE_URL }) => {
+  handle('configure', ({ apiKey, model, baseUrl = DEFAULT_BASE_URL, inputMode = 'auto' }) => {
     if (active) throw new Error('请等待当前任务结束后再修改配置。');
     if (typeof model !== 'string' || !/^gemini-[a-zA-Z0-9._-]+$/.test(model.trim())) throw new Error('请输入有效的 Gemini 模型名称。');
+    if (!['auto', 'inline', 'files'].includes(inputMode)) throw new Error('无效的视频提交方式。');
     const normalizedBase = normalizeBaseUrl(baseUrl);
     if (normalizedBase !== configuredBaseUrl() && database.get('encryptedKey') && !apiKey?.trim()) throw new Error('更换 Base URL 时请重新填写对应的 API Key。');
     if (apiKey) {
@@ -72,6 +73,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       if (typeof apiKey !== 'string' || apiKey.length > 500) throw new Error('API Key 格式无效。');
       database.set('encryptedKey', safeStorage.encryptString(apiKey.trim()).toString('base64'));
     }
+    database.set('inputMode', inputMode);
     database.set('baseUrl', normalizedBase);
     database.set('model', model.trim());
     return publicSettings();
@@ -123,20 +125,27 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     const controller = new AbortController();
     active = controller;
     const timeout = setTimeout(() => controller.abort(new DOMException('任务超时', 'TimeoutError')), 20 * 60000);
-    const progress = message => { if (!event.sender.isDestroyed()) event.sender.send('ai:progress', message); };
+    const taskId = crypto.randomUUID(), startedAt = Date.now();
+    let currentStage = 'validate', failedStage, failure, cleanupWarning = '';
+    const progress = update => {
+      const value = typeof update === 'string' ? { message: update } : update;
+      currentStage = value.stage || currentStage;
+      if (!event.sender.isDestroyed()) event.sender.send('ai:progress', { taskId, startedAt, status: 'running', ...value, stage: value.stage || currentStage });
+    };
     let remoteName;
     try {
-      progress('正在校验视频身份…');
-      const record = await resolve(filePath, controller.signal);
+      progress({ stage: 'validate', message: '正在读取视频并校验内容身份…' });
+      const record = await resolve(filePath, controller.signal, info => progress({ stage: 'validate', message: '正在校验视频身份…', ...info, unit: 'bytes' }));
       const model = database.get('model', 'gemini-3.8-flash');
       return await withDirectoryAccess(record.path, async () => {
         const stats = await fs.promises.stat(record.path);
         if (stats.size > 2 * 1024 ** 3) throw new Error('首版支持最大 2 GB 的视频。');
-        const report = await analyze({ apiKey, baseUrl, model, filePath: record.path, duration, signal: controller.signal, progress, remote: name => {
+        const report = await analyze({ apiKey, baseUrl, inputMode: database.get('inputMode', 'auto'), model, filePath: record.path, duration, signal: controller.signal, progress, remote: name => {
           remoteName = name;
           database.set('pendingCleanup', [...pendingCleanup().filter(item => item.name !== name || item.baseUrl !== baseUrl), { name, baseUrl }]);
         } });
         controller.signal.throwIfAborted();
+        progress({ stage: 'save', message: '正在复核原视频并保存笔记…' });
         if (await fingerprint(record.path, controller.signal) !== record.hash) throw new Error('分析期间视频发生变化，报告未保存。');
         const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 1 };
         const current = records().find(item => item.id === record.id) || record;
@@ -144,16 +153,19 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
         writeRecord(updated);
         return updated;
       });
+    } catch (error) {
+      failure = error; failedStage = currentStage; throw error;
     } finally {
       if (remoteName) {
-        progress('正在清理远端临时文件…');
+        progress({ stage: 'cleanup', message: '笔记处理已结束，正在删除远端临时文件…' });
         try {
           await removeRemote(apiKey, remoteName, baseUrl);
           database.set('pendingCleanup', pendingCleanup().filter(item => item.name !== remoteName || item.baseUrl !== baseUrl));
-        } catch { progress('报告已处理；远端文件清理失败，请在设置中测试连接以重试清理。'); }
+        } catch { cleanupWarning = '远端临时文件清理失败，可在设置中测试连接以重试。'; }
       }
       clearTimeout(timeout);
       active = null;
+      progress({ stage: failure ? failedStage : 'complete', status: failure ? (failure.name === 'AbortError' ? 'cancelled' : 'failed') : 'complete', message: failure ? (failure.name === 'AbortError' ? '任务已取消。' : '处理未完成，请查看下方错误。') : '个人笔记已保存。', warning: cleanupWarning, finishedAt: Date.now() });
     }
   });
   handle('save', ({ id, reportId, notes }) => {

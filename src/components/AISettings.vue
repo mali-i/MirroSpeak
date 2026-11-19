@@ -4,7 +4,9 @@
     <p>使用你自己的 Gemini API Key，费用由服务商向你的 API 账户收取。仅在你主动分析时，将完整视频、音轨和 Key 发送至你配置的 API 服务，报告保存在本机。</p>
     <button :disabled="busy || !ready" @click="baseUrl = 'https://api.teamorouter.com'">使用 TeamoRouter 地址</button>
     <label>API Base URL<input v-model="baseUrl" :disabled="busy || !ready" placeholder="https://generativelanguage.googleapis.com" autocomplete="off" /></label>
-    <p class="hint">填写 Gemini 原生 API 服务根地址，可带路径前缀或以 /v1beta 结尾。TeamoRouter 使用 https://api.teamorouter.com，认证自动采用 Bearer。视频分析仍要求中转站支持 Files API 和 generateContent；仅兼容 OpenAI Chat API 的地址暂不适用。更换地址时请重新填写对应 Key。</p>
+    <p class="hint">填写 Gemini 原生 API 服务根地址，可带路径前缀或以 /v1beta 结尾。TeamoRouter 使用 https://api.teamorouter.com，认证自动采用 Bearer。自动模式下 TeamoRouter 直接提交视频至 generateContent，绕过 Files API；仅兼容 OpenAI Chat API 的地址暂不适用。更换地址时请重新填写对应 Key。</p>
+    <label>视频提交方式<select v-model="inputMode" :disabled="busy || !ready"><option value="auto">自动（TeamoRouter 内联，其余 Files）</option><option value="inline">内联视频（绕过 Files API）</option><option value="files">Files API 上传</option></select></label>
+    <p class="hint">内联模式下，超过 12 MB 的视频使用本机 ffmpeg 压缩副本，保留完整音轨和时间轴，画面降至最大 320 像素、每秒 2 帧；原片不变。请求上限 20 MB，中转站是否接受内联视频仍需实测。</p>
     <label>模型名称<input v-model="model" :disabled="busy || !ready" placeholder="gemini-3.8-flash" autocomplete="off" /></label>
     <label>API Key<input v-model="apiKey" :disabled="busy || !ready" type="password" :placeholder="hasKey ? '已安全保存；留空保留当前 Key' : '输入 Gemini API Key'" autocomplete="off" /></label>
     <p v-if="secureStorage === false">系统安全存储不可用，暂不能保存 Key。</p>
@@ -23,6 +25,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { invokeAI } from '../ai/client.mjs';
+const inputMode = ref('auto');
 const baseUrl = ref('https://generativelanguage.googleapis.com');
 const model = ref('gemini-3.8-flash'), apiKey = ref(''), hasKey = ref(false), secureStorage = ref(null), busy = ref(false), message = ref('');
 const ready = ref(false), loading = ref(true);
@@ -31,7 +34,7 @@ async function run(action, data) {
   try { return await invokeAI(window.electronAPI, action, data); }
   finally { busy.value = false; }
 }
-async function save() { try { const settings = await run('configure', { baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value }); baseUrl.value = settings.baseUrl; hasKey.value = settings.hasKey; apiKey.value = ''; message.value = '配置已保存。'; } catch (e) { message.value = e.message; } }
+async function save() { try { const settings = await run('configure', { inputMode: inputMode.value, baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value }); baseUrl.value = settings.baseUrl; hasKey.value = settings.hasKey; apiKey.value = ''; message.value = '配置已保存。'; } catch (e) { message.value = e.message; } }
 async function test() { try { message.value = '正在验证 Key 和模型查询，不发送视频…'; message.value = (await run('test')).message; } catch (e) { message.value = e.message; } }
 async function forget() { try { await run('forget-key'); hasKey.value = false; message.value = 'Key 已删除，本地报告保留。'; } catch (e) { message.value = e.message; } }
 async function loadSettings() {
@@ -41,6 +44,7 @@ async function loadSettings() {
   message.value = '';
   try {
     const settings = await run('settings');
+    inputMode.value = settings.inputMode || 'auto';
     baseUrl.value = settings.baseUrl;
     model.value = settings.model;
     hasKey.value = settings.hasKey;
@@ -52,5 +56,5 @@ async function loadSettings() {
 onMounted(loadSettings);
 </script>
 <style scoped>
-.ai-settings { margin-top: 24px; } p { line-height: 1.7; color: #64748b; } label { display: block; margin: 16px 0; font-weight: 600; } input { display: block; width: 100%; padding: 10px; margin-top: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .actions { display: flex; flex-wrap: wrap; gap: 8px; } button { padding: 9px 14px; border: 0; border-radius: 6px; background: #e2eee8; cursor: pointer; } button:disabled { opacity: .5; } .hint { font-size: 12px; }
+.ai-settings { margin-top: 24px; } p { line-height: 1.7; color: #64748b; } label { display: block; margin: 16px 0; font-weight: 600; } input, select { display: block; width: 100%; padding: 10px; margin-top: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .actions { display: flex; flex-wrap: wrap; gap: 8px; } button { padding: 9px 14px; border: 0; border-radius: 6px; background: #e2eee8; cursor: pointer; } button:disabled { opacity: .5; } .hint { font-size: 12px; }
 </style>
