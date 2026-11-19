@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseReportResponse } from './report-response.mjs';
 import { networkError } from './network.mjs';
+import { readGeneration } from './gemini-stream.mjs';
 import { prepareInlineVideo } from './inline-video.mjs';
 let fetchTransport = (...args) => globalThis.fetch(...args);
 export function setRequestTransport(fetchImpl) { fetchTransport = fetchImpl; }
@@ -31,6 +32,7 @@ export async function request(apiKey, endpoint, options = {}) {
     throw failure;
   }
   if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
     const messages = { 400: '请求不被支持，请检查视频格式和模型。', 401: 'API Key 无效。', 402: '服务商账户余额不足，请检查账户余额。', 413: '视频请求超过服务商的体积上限。', 403: 'API Key 无权限或所在地区不可用。', 404: '模型或远端文件不存在，请检查模型名称。', 429: '额度不足或请求过于频繁，请稍后手动重试。' };
     const error = new Error(`${stage}失败（HTTP ${response.status}）：${messages[response.status] || 'Gemini 请求失败，请稍后重试。'}`);
     error.status = response.status;
@@ -65,7 +67,9 @@ export async function analyze({ apiKey, baseUrl = DEFAULT_BASE_URL, model, fileP
       progress({ stage: 'upload', message: '正在上传视频请求…', ...info, unit: 'bytes' });
       if (info.percent >= 100) { uploaded = true; progress({ stage: 'analyze', message: '视频请求已发送，等待模型理解与整理。服务商不提供分析百分比。' }); }
     };
-    const response = await (await request(apiKey, apiEndpoint(baseUrl, `models/${encodeURIComponent(model)}:generateContent`), { onUploadProgress: inline ? onUploadProgress : undefined, stage: '生成个人笔记', method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: payload })).json();
+    const endpoint = apiEndpoint(baseUrl, `models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`);
+    const httpResponse = await request(apiKey, endpoint, { streamResponse: true, onUploadProgress: inline ? onUploadProgress : undefined, stage: '生成个人笔记', method: 'POST', signal, headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: payload });
+    const response = await readGeneration(httpResponse, { endpoint, signal, progress });
     progress({ stage: 'analyze', message: '模型已返回，正在校验笔记内容和时间点…' });
     let report;
     try { report = parseReportResponse(response, duration); }

@@ -8,7 +8,7 @@
     </ol>
     <p role="status" aria-live="polite">{{ task.message }}</p>
     <div v-if="task.status === 'running'" class="meter" :class="{ indeterminate: !measurable }" role="progressbar" :aria-label="heading" :aria-valuenow="measurable ? Math.round(task.percent) : undefined" :aria-valuemin="0" :aria-valuemax="100"><span :style="{ width: measurable ? `${task.percent}%` : '35%' }" /></div>
-    <div class="task-detail"><span>{{ detail }}</span><b v-if="measurable && task.status === 'running'">{{ Math.floor(task.percent) }}%</b></div>
+    <div class="task-detail"><span>{{ detail }}<template v-if="task.stage === 'analyze' && task.status === 'running' && task.lastActivityAt"> · 距上次响应 {{ Math.max(0, Math.floor((now - task.lastActivityAt) / 1000)) }} 秒</template></span><b v-if="measurable && task.status === 'running'">{{ Math.floor(task.percent) }}%</b></div>
     <p v-if="task.warning" class="warning">{{ task.warning }}</p>
     <p v-if="task.status === 'failed'" class="help">原视频和已有笔记保留。重新勾选上传说明后可重试，重试可能产生新的 API 费用。</p>
     <p v-if="task.status === 'cancelled'" class="help">已停止本次处理；服务商已接收的请求仍可能计费。</p>

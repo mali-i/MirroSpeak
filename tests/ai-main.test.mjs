@@ -91,7 +91,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     assert.equal(proxied.data.reports.at(-1).baseUrl, 'https://relay.example/gemini');
     assert(globalThis.__aiTest.urls.every(url => url.startsWith('https://relay.example/gemini/')));
     assert(globalThis.__aiTest.urls.some(url => url.includes('/upload/v1beta/files')));
-    assert(globalThis.__aiTest.urls.some(url => url.includes(':generateContent')));
+    assert(globalThis.__aiTest.urls.some(url => url.includes(':streamGenerateContent')));
     assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 1);
     assert.equal(globalThis.__aiTest.values.pendingCleanup[0].baseUrl, 'https://generativelanguage.googleapis.com');
     const stored = globalThis.__aiTest.values.videos.find(item => item.id === original.id);

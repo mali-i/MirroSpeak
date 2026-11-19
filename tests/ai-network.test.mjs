@@ -79,3 +79,25 @@ test('native Chromium path preserves response status/body and abort reasons', as
   const controller = new AbortController(); controller.abort();
   await assert.rejects(transport('https://relay.example/upload', { signal: controller.signal }), { name: 'AbortError' });
 });
+
+test('streaming transport returns headers before body ends and remains cancellable', async () => {
+  const { EventEmitter } = await import('node:events');
+  let response, request;
+  const controller = new AbortController();
+  const transport = createElectronFetch(null, () => {
+    request = new EventEmitter();
+    request.setHeader = () => {};
+    request.abort = () => request.emit('abort');
+    request.end = () => queueMicrotask(() => {
+      response = new EventEmitter(); response.statusCode = 200; response.headers = { 'content-type': ['text/event-stream'] };
+      request.emit('response', response);
+    });
+    return request;
+  });
+  const result = await transport('https://relay.example/stream', { streamResponse: true, signal: controller.signal });
+  const reader = result.body.getReader();
+  response.emit('data', Buffer.from('data: {}\n\n'));
+  assert.equal(new TextDecoder().decode((await reader.read()).value), 'data: {}\n\n');
+  const next = reader.read(); controller.abort();
+  await assert.rejects(next, { name: 'AbortError' });
+});

@@ -17,7 +17,7 @@ test('TeamoRouter auto mode sends video inline in one generation request without
   let calls = 0;
   globalThis.fetch = async (url, init) => {
     calls++;
-    assert.equal(url, 'https://api.teamorouter.com/v1beta/models/gemini-test:generateContent');
+    assert.equal(url, 'https://api.teamorouter.com/v1beta/models/gemini-test:streamGenerateContent?alt=sse');
     assert.equal(init.headers.Authorization, 'Bearer test-key');
     const body = JSON.parse(init.body);
     const part = body.contents[0].parts[0];
