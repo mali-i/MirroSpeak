@@ -4,6 +4,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  ai: (action, data) => {
+    const allowed = ['settings', 'configure', 'forget-key', 'test', 'library', 'open', 'relink', 'cancel', 'analyze', 'save', 'export', 'frame'];
+    if (!allowed.includes(action)) return Promise.reject(new Error('Unknown AI action'));
+    return ipcRenderer.invoke(`ai:${action}`, data);
+  },
+  onAIProgress: (callback) => {
+    const listener = (_event, message) => callback(message);
+    ipcRenderer.on('ai:progress', listener);
+    return () => ipcRenderer.removeListener('ai:progress', listener);
+  },
   selectDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   getConfig: (key) => ipcRenderer.invoke('config:get', key),
   setConfig: (key, value) => ipcRenderer.invoke('config:set', key, value),

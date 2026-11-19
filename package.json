@@ -15,7 +15,8 @@
     "upload": "node scripts/upload-mas.js",
     "upload:mas": "npm run upload",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint": "echo \"No linting configured\"",
+    "test": "node --test tests/*.test.mjs"
   },
   "keywords": [],
   "author": {

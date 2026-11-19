@@ -18,6 +18,12 @@
         >Calendar</button>
       </div>
     </div>
+    <details class="saved-reports" @toggle="loadReports">
+      <summary>已保存的个人笔记 · {{ savedReports.length }}</summary>
+      <p>视频改名后可直接打开视频恢复关联；移走后可在此打开笔记并重新定位。</p>
+      <p v-if="reportError">{{ reportError }}</p>
+      <button v-for="item in savedReports" :key="item.id" class="btn-secondary" @click="playVideo(item)">{{ item.name }} · {{ item.reportCount }} 个版本</button>
+    </details>
     <div v-if="videos.length === 0" class="no-videos">No videos found.</div>
     <template v-else>
       <div
@@ -270,30 +276,21 @@
       </div>
     </div>
     
-    <div v-if="selectedVideo" class="video-modal" @click.self="closeModal">
-        <div class="modal-content">
-            <video 
-              :src="getVideoUrl(selectedVideo.path)" 
-              :poster="getThumbnailUrl(selectedVideo.path)"
-              controls 
-              autoplay
-              playsinline
-              @error="handleVideoError"
-            ></video>
-            <div class="modal-footer">
-                <span>{{ selectedVideo.name }}</span>
-                <div class="modal-actions">
-                  <button class="close-btn" @click="closeModal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <VideoNotes v-if="selectedVideo" :video="selectedVideo" @close="closeModal" @updated="loadReports" />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import dayjs from 'dayjs';
+import VideoNotes from './VideoNotes.vue';
+const savedReports = ref([]);
+const reportError = ref('');
+async function loadReports() {
+  try { const result = await window.electronAPI.ai('library'); if (!result.success) throw new Error(result.error); savedReports.value = result.data; } catch (e) { reportError.value = e.message; }
+}
+onMounted(loadReports);
 
 const props = defineProps({
   directory: String
@@ -1334,4 +1331,8 @@ defineExpose({ refresh: loadVideos });
     border-radius: 4px;
     cursor: pointer;
 }
+</style>
+
+<style scoped>
+.saved-reports { background: white; padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 20px; } .saved-reports summary { cursor: pointer; font-weight: 600; } .saved-reports p { color: #64748b; font-size: 13px; } .saved-reports button { margin: 4px; }
 </style>

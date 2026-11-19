@@ -27,6 +27,8 @@
       </div>
     </div>
 
+    <AISettings />
+
     <!-- Device Settings Section -->
     <div class="settings-section mt-6">
       <h3>Device Settings</h3>
@@ -74,6 +76,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue';
+import AISettings from './AISettings.vue';
 
 const props = defineProps({
   saveDirectory: String

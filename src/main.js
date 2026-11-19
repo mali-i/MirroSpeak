@@ -6,6 +6,8 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import Store from 'electron-store';
 import started from 'electron-squirrel-startup';
+import { registerAI, linkedAccess, movedVideo } from './ai/main.mjs';
+import { createElectronFetch } from './ai/network.mjs';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -96,7 +98,7 @@ const startScopedAccess = (bookmark) => {
 };
 
 const withDirectoryAccess = async (targetPath, operation) => {
-  const directoryAccess = getDirectoryAccessForPath(targetPath);
+  const directoryAccess = linkedAccess(targetPath) || getDirectoryAccessForPath(targetPath);
   const stopAccess = startScopedAccess(directoryAccess?.bookmark);
 
   try {
@@ -242,6 +244,8 @@ ipcMain.handle('dialog:openDirectory', async () => {
   };
 });
 
+registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fetch: createElectronFetch((input, init) => net.fetch(input, init)) });
+
 ipcMain.handle('config:get', (event, key) => {
   return store.get(key);
 });
@@ -359,6 +363,7 @@ ipcMain.handle('video:rename', async (event, { filePath, newName }) => {
       }
 
       await fs.promises.rename(sourcePath, targetPath);
+      movedVideo(sourcePath, targetPath);
       return { success: true, filePath: targetPath, name: path.basename(targetPath) };
     });
   } catch (error) {
@@ -522,6 +527,7 @@ app.whenReady().then(async () => {
           return new Response(readableWebStream, {
             status: 206,
             headers: {
+              'Access-Control-Allow-Origin': '*',
               'Content-Range': `bytes ${start}-${end}/${fileSize}`,
               'Accept-Ranges': 'bytes',
               'Content-Length': chunksize,
@@ -536,6 +542,7 @@ app.whenReady().then(async () => {
         return new Response(readableWebStream, {
           status: 200,
           headers: {
+            'Access-Control-Allow-Origin': '*',
             'Content-Length': fileSize,
             'Content-Type': mimeType
           }
