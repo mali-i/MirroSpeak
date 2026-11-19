@@ -94,6 +94,15 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     assert(globalThis.__aiTest.urls.some(url => url.includes(':generateContent')));
     assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 1);
     assert.equal(globalThis.__aiTest.values.pendingCleanup[0].baseUrl, 'https://generativelanguage.googleapis.com');
+    const stored = globalThis.__aiTest.values.videos.find(item => item.id === original.id);
+    const json = JSON.stringify({ title: '恢复笔记', summary: '摘要', chapters: [part], materials: [], notes: [part] });
+    stored.pendingAnalysis = { response: { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '```json\n' + json + '\n```' }] } }] }, duration: 10, model: 'gemini-test', sourceHash: stored.hash, createdAt: new Date().toISOString() };
+    const callsBeforeRecovery = globalThis.__aiTest.urls.length;
+    const recovered = await invoke('recover', { id: original.id });
+    assert.equal(recovered.success, true, recovered.error);
+    assert.equal(recovered.data.reports.at(-1).title, '恢复笔记');
+    assert.equal(recovered.data.pendingAnalysis, undefined);
+    assert.equal(globalThis.__aiTest.urls.length, callsBeforeRecovery);
     await fs.writeFile(relocated, 'changed');
     assert.equal((await invoke('open', { id: original.id })).data.missing, true);
     assert.equal((await invoke('analyze', { filePath: relocated, duration: 901 })).success, false);

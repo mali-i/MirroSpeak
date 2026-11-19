@@ -17,6 +17,7 @@
           </div>
           <AnalysisProgress v-if="task" :task="task" />
           <p role="status">{{ status }}</p><p v-if="error" role="alert" class="error">{{ error }}</p>
+          <div v-if="recoverable" class="consent"><strong>已有模型响应保存在本机</strong><p>可先重新解析，不上传视频、不发起新的模型调用。若响应本身缺失或截断，仍需重新分析。</p><button :disabled="busy || recovering" @click="recover">{{ recovering ? '正在重新解析…' : '重新解析已有响应' }}</button></div>
         </div>
         <div class="report-pane">
           <p v-if="loading">正在校验视频身份并加载报告…</p>
@@ -55,7 +56,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import VideoFrame from './VideoFrame.vue';
 import AnalysisProgress from './AnalysisProgress.vue';
 import { applyProgress } from '../ai/progress.mjs';
-const task = ref(null), cancelRequested = ref(false);
+const task = ref(null), cancelRequested = ref(false), recoverable = ref(false), recovering = ref(false);
 const props = defineProps({ video: { type: Object, required: true } });
 const emit = defineEmits(['close', 'updated']);
 const record = ref(null), player = ref(null), duration = ref(0), version = ref(''), busy = ref(false), loading = ref(true), consent = ref(false), status = ref(''), error = ref(''), editing = ref(false), saving = ref(false), draft = ref([]);
@@ -63,8 +64,8 @@ const endpoint = ref('设置中配置的 API 服务');
 let mounted = true;
 const report = computed(() => record.value?.reports.find(item => item.id === version.value));
 const source = computed(() => { const filePath = record.value?.path || props.video.path; return filePath ? `media://local${filePath.split('/').map(encodeURIComponent).join('/')}` : ''; });
-async function call(action, data) { const result = await window.electronAPI.ai(action, data); if (!result.success) throw new Error(result.error); return result.data; }
-function assign(value) { record.value = value; version.value = value.reports.at(-1)?.id || ''; }
+async function call(action, data) { const result = await window.electronAPI.ai(action, data); if (!result.success) { const error = new Error(result.error); error.recoverable = result.recoverable; throw error; } return result.data; }
+function assign(value) { recoverable.value = !!value.pendingAnalysis; record.value = value; version.value = value.reports.at(-1)?.id || ''; }
 function time(ms) { return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`; }
 function loaded(event) { duration.value = Number.isFinite(event.target.duration) ? event.target.duration : 0; }
 function mediaError() { error.value = '视频无法播放。可重新定位原视频；已有笔记仍可查看。'; }
@@ -76,10 +77,11 @@ async function analyze() {
   busy.value = true; cancelRequested.value = false; error.value = ''; status.value = '';
   task.value = applyProgress(null, { stage: 'validate', status: 'running', startedAt: Date.now(), message: '正在准备分析任务…' });
   try { const value = await call('analyze', { filePath: record.value.path, duration: duration.value }); if (mounted) { assign(value); if (task.value?.status !== 'complete') task.value = applyProgress(task.value, { stage: 'complete', status: 'complete', message: '个人笔记已保存。', finishedAt: Date.now() }); emit('updated'); } }
-  catch (e) { if (mounted) { if (task.value?.status !== 'cancelled') error.value = e.message; if (task.value?.status === 'running') task.value = applyProgress(task.value, { status: 'failed', message: '处理未完成，请查看下方错误。', finishedAt: Date.now() }); status.value = ''; } }
+  catch (e) { if (mounted) { if (e.recoverable) recoverable.value = true; if (task.value?.status !== 'cancelled') error.value = e.message; if (task.value?.status === 'running') task.value = applyProgress(task.value, { status: 'failed', message: '处理未完成，请查看下方错误。', finishedAt: Date.now() }); status.value = ''; } }
   finally { busy.value = false; consent.value = false; }
 }
 async function cancel() { cancelRequested.value = true; try { await call('cancel'); if (busy.value && task.value?.status === 'running') task.value = applyProgress(task.value, { message: '正在停止任务并清理临时文件，请稍候…' }); } catch (e) { error.value = e.message; cancelRequested.value = false; } }
+async function recover() { recovering.value = true; try { assign(await call('recover', { id: record.value.id })); error.value = ''; task.value = null; status.value = '已从本地响应恢复笔记，未调用模型。'; emit('updated'); } catch (e) { error.value = e.message; } finally { recovering.value = false; } }
 function edit() { draft.value = report.value.notes.map(item => item.text); editing.value = true; }
 async function save() { saving.value = true; try { const id = version.value; record.value = await call('save', { id: record.value.id, reportId: id, notes: [...draft.value] }); editing.value = false; status.value = '笔记修改已保存。'; } catch (e) { error.value = e.message; } finally { saving.value = false; } }
 async function exportNotes() { try { if (await call('export', { id: record.value.id, reportId: version.value })) status.value = 'Markdown 已导出。'; } catch (e) { error.value = e.message; } }

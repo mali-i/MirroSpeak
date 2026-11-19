@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fingerprint, identify, markdown } from './core.mjs';
+import { parseReportResponse } from './report-response.mjs';
 import { analyze, checkConnection, removeRemote, setRequestTransport } from './gemini.mjs';
 import { DEFAULT_BASE_URL, normalizeBaseUrl } from './endpoint.mjs';
 
@@ -34,7 +35,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
   if (fetchImpl) setRequestTransport(fetchImpl);
   const handle = (name, fn) => ipcMain.handle(`ai:${name}`, async (event, data) => {
     try { return { success: true, data: await fn(data, event) }; }
-    catch (error) { return { success: false, error: error.name === 'AbortError' ? '任务已取消。' : error.name === 'TimeoutError' ? '任务超时，请手动重试。' : error.message }; }
+    catch (error) { return { success: false, recoverable: error.code === 'REPORT_RESPONSE_INVALID', error: error.name === 'AbortError' ? '任务已取消。' : error.name === 'TimeoutError' ? '任务超时，请手动重试。' : error.message }; }
   });
   const checkedPath = async target => {
     if (typeof target !== 'string' || !/\.(mp4|webm)$/i.test(target)) throw new Error('请选择 MP4 或 WebM 视频。');
@@ -140,16 +141,20 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       return await withDirectoryAccess(record.path, async () => {
         const stats = await fs.promises.stat(record.path);
         if (stats.size > 2 * 1024 ** 3) throw new Error('首版支持最大 2 GB 的视频。');
-        const report = await analyze({ apiKey, baseUrl, inputMode: database.get('inputMode', 'auto'), model, filePath: record.path, duration, signal: controller.signal, progress, remote: name => {
+        const report = await analyze({ apiKey, baseUrl, inputMode: database.get('inputMode', 'auto'), model, filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
+          const current = records().find(item => item.id === record.id) || record;
+          writeRecord({ ...current, pendingAnalysis: { response, ...inputMetadata, duration, model, baseUrl, sourceHash: record.hash, createdAt: new Date().toISOString() } });
+        }, remote: name => {
           remoteName = name;
           database.set('pendingCleanup', [...pendingCleanup().filter(item => item.name !== name || item.baseUrl !== baseUrl), { name, baseUrl }]);
         } });
         controller.signal.throwIfAborted();
         progress({ stage: 'save', message: '正在复核原视频并保存笔记…' });
         if (await fingerprint(record.path, controller.signal) !== record.hash) throw new Error('分析期间视频发生变化，报告未保存。');
-        const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 1 };
+        const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 2 };
         const current = records().find(item => item.id === record.id) || record;
         const updated = { ...current, reports: [...current.reports, version] };
+        delete updated.pendingAnalysis;
         writeRecord(updated);
         return updated;
       });
@@ -167,6 +172,18 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       active = null;
       progress({ stage: failure ? failedStage : 'complete', status: failure ? (failure.name === 'AbortError' ? 'cancelled' : 'failed') : 'complete', message: failure ? (failure.name === 'AbortError' ? '任务已取消。' : '处理未完成，请查看下方错误。') : '个人笔记已保存。', warning: cleanupWarning, finishedAt: Date.now() });
     }
+  });
+  handle('recover', ({ id }) => {
+    if (active) throw new Error('请等待当前分析任务结束。');
+    const record = records().find(item => item.id === id);
+    const pending = record?.pendingAnalysis;
+    if (!pending || pending.sourceHash !== record.hash) throw new Error('没有可以重新解析的本地响应。');
+    const report = parseReportResponse(pending.response, pending.duration);
+    const { response, ...metadata } = pending;
+    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usageMetadata || null, promptVersion: 2 });
+    delete record.pendingAnalysis;
+    writeRecord(record);
+    return record;
   });
   handle('save', ({ id, reportId, notes }) => {
     const record = records().find(item => item.id === id);
