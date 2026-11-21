@@ -1,5 +1,5 @@
 export const ANALYSIS_STEPS = [
-  { id: 'validate', label: '校验视频' }, { id: 'prepare', label: '准备素材' },
+  { id: 'validate', label: '校验视频' }, { id: 'transcribe', label: '本地语音转写' }, { id: 'prepare', label: '准备素材' },
   { id: 'upload', label: '上传视频' }, { id: 'analyze', label: '理解与整理' },
   { id: 'save', label: '保存笔记' }, { id: 'cleanup', label: '清理临时文件' },
 ];

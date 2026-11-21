@@ -6,6 +6,8 @@
     <p class="hint">从百炼控制台复制完整 OpenAI 兼容地址（以 /compatible-mode/v1 结尾），Key、地址和模型必须属于同一地域。更换地址时需重新填写 Key。</p>
     <label>模型名称<input v-model="model" :disabled="busy || !ready" placeholder="例如 qwen3.8-omni-flash" autocomplete="off" /></label>
     <p class="hint">填写百炼控制台中的完整模型 ID，所选模型需支持视频画面、音轨输入和文本输出。</p>
+    <p v-if="model.trim().toLowerCase().startsWith('qwen4-max')" role="alert">Qwen4-Max 将先使用本地 Whisper 转写原视频音轨，再结合视频画面整理笔记。首次使用需下载语音模型，不额外调用云端语音识别 API。</p>
+    <p v-else-if="model.trim() && !model.toLowerCase().includes('omni')" class="hint">非 Omni 模型会先使用本地 Whisper 转写音轨，再将转写文字与视频一并提交。</p>
     <label>API Key<input v-model="apiKey" :disabled="busy || !ready" type="password" :placeholder="hasKey ? '已安全保存；留空保留当前 Key' : '输入阿里云百炼 API Key'" autocomplete="off" /></label>
     <p class="hint">本地视频超过 6 MiB 时使用 ffmpeg 压缩临时副本，保留完整时长，降低画面清晰度、帧率和音频码率，原片不变。视频页也可填写同一原视频的 HTTPS 公网链接，以保留原始素材质量。</p>
     <p v-if="secureStorage === false">系统安全存储不可用，暂不能保存 Key。</p>

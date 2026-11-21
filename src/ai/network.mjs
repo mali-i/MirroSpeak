@@ -78,7 +78,7 @@ function requestWithStatus(netRequest, endpoint, options) {
         response.on('data', chunk => {
           if (settled) return;
           length += chunk.length;
-          if (length > 8 * 1024 * 1024) { finish(new Error('API response exceeds 8 MB')); request.abort(); return; }
+          if (length > (options.maxResponseBytes || 8 * 1024 * 1024)) { finish(new Error('API response exceeds 8 MB')); request.abort(); return; }
           if (headersSent) streamController.enqueue(new Uint8Array(chunk));
           else chunks.push(Buffer.from(chunk));
         });

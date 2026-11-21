@@ -59,7 +59,7 @@ npm run upload
 
 ## AI 个人笔记（Qwen-Omni BYOK）
 
-使用阿里云百炼 Qwen-Omni 同时理解视频画面和音轨，输出内容概览、章节、观点素材及个人笔记。默认模型 `qwen3.8-omni-flash`，也可选择 Qwen3.5-Omni。采用阿里云文档中的 OpenAI SDK / Chat Completions 协议，流式输出文本；不会自动重试收费请求。
+使用阿里云百炼模型输出内容概览、章节、观点素材及个人笔记。Omni 模型直接理解音画；Qwen4-Max 等非 Omni 模型先由本地 Whisper base 转写原视频音轨，再将带时间点的文字与视频一并提交，保留所选模型。默认模型 `qwen3.8-omni-flash`，也可选择 Qwen3.5-Omni。采用阿里云文档中的 OpenAI SDK / Chat Completions 协议，流式输出文本；不会自动重试收费请求。
 
 1. 在 Settings → AI 个人笔记填写百炼工作空间的完整 OpenAI 兼容 API Base URL（通常以 `/compatible-mode/v1` 结尾）及同地域的 API Key，保存后测试基础连接。地址从自己的百炼控制台复制；应用不猜测工作空间 ID。
 2. 在 Gallery 打开已录制的视频，同意本次提交后生成笔记。费用计入自己的阿里云账户。
@@ -74,3 +74,9 @@ npm run upload
 校验、压缩、上传、等待、接收输出和保存展示阶段状态；压缩及上传显示当前阶段实际进度，不虚构模型分析百分比。可取消任务，取消后等待本地资源清理。
 
 官方参考：[Qwen-Omni](https://help.aliyun.com/zh/model-studio/qwen-omni)。
+
+### Qwen4-Max 的本地语音转写
+
+电脑需安装 `ffmpeg` 与 Python `openai-whisper`（可执行命令 `whisper`）。首次使用下载约 140 MiB 的 Whisper base 模型，下载走应用系统代理网络通道并校验 SHA-256；音轨在本地提取和转写，不额外调用云端语音 API。转写文字会与视频一起发送给所选模型，计入该模型输入 token；额度适用范围以百炼账户为准。中文语音识别可能有错字、漏字，需回看原视频核对。
+
+模型和按原视频 SHA-256 标识的转写结果保存在应用数据目录 `speech-cache`，重复分析可复用转写。临时 WAV 文件在成功、失败或取消后删除。无音轨、无可用讲话文字或转写失败时停止，不提交云端收费请求；原有报告保留。公网视频链接方式仍从当前关联的本地原视频转写讲话，请确保二者内容相同。

@@ -2,6 +2,7 @@ import { app, ipcMain, dialog, safeStorage } from 'electron';
 import Store from 'electron-store';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import { fingerprint, identify, markdown } from './core.mjs';
 import { parseReportResponse } from './report-response.mjs';
@@ -130,14 +131,14 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       return await withDirectoryAccess(record.path, async () => {
         const stats = await fs.promises.stat(record.path);
         if (stats.size > 2 * 1024 ** 3) throw new Error('首版支持最大 2 GB 的视频。');
-        const report = await analyze({ apiKey, baseUrl, videoUrl, model, filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
+        const report = await analyze({ apiKey, baseUrl, videoUrl, model, sourceHash: record.hash, transcriptionCacheDir: path.join(app.getPath?.('userData') || os.tmpdir(), 'speech-cache'), filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
           const current = records().find(item => item.id === record.id) || record;
           writeRecord({ ...current, pendingAnalysis: { response, ...inputMetadata, duration, model, baseUrl, sourceHash: record.hash, createdAt: new Date().toISOString() } });
         } });
         controller.signal.throwIfAborted();
         progress({ stage: 'save', message: '正在复核原视频并保存笔记…' });
         if (await fingerprint(record.path, controller.signal) !== record.hash) throw new Error('分析期间视频发生变化，报告未保存。');
-        const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 2 };
+        const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 3 };
         const current = records().find(item => item.id === record.id) || record;
         const updated = { ...current, reports: [...current.reports, version] };
         delete updated.pendingAnalysis;
@@ -159,7 +160,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     if (!pending || pending.sourceHash !== record.hash) throw new Error('没有可以重新解析的本地响应。');
     const report = parseReportResponse(pending.response, pending.duration);
     const { response, ...metadata } = pending;
-    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usage || null, promptVersion: 2 });
+    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usage || null, promptVersion: 3 });
     delete record.pendingAnalysis;
     writeRecord(record);
     return record;
