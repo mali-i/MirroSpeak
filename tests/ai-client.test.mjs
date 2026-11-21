@@ -10,7 +10,7 @@ test('old preload is detected before invoking IPC', async () => {
   await assert.rejects(invokeAI({}, 'settings'), /完全退出应用/);
 });
 test('secure storage state comes only from a successful main response', async () => {
-  const settings = { secureStorage: false, hasKey: false, model: 'gemini-test' };
+  const settings = { secureStorage: false, hasKey: false, model: 'qwen3.8-omni-flash' };
   assert.deepEqual(await invokeAI({ ai: async () => ({ success: true, data: settings }) }, 'settings'), settings);
   await assert.rejects(invokeAI({ ai: async () => ({ success: false, error: 'backend failed' }) }, 'settings'), /backend failed/);
 });

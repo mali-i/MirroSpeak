@@ -34,7 +34,7 @@ test('network diagnostics distinguish failures and never expose credentials or r
 
 // Electron net.fetch rejects redirects even with redirect: "manual".
 test('Electron cancelled redirects are not reported as unknown network errors', () => {
-  const result = networkError(new Error('Redirect was cancelled'), 'https://api.teamorouter.com/upload/v1beta/files');
+  const result = networkError(new Error('Redirect was cancelled'), 'https://workspace.example/compatible-mode/v1/chat/completions');
   assert.equal(result.code, 'REDIRECT_BLOCKED');
   assert.match(result.message, /重定向/);
   assert(!result.message.includes('NETWORK_ERROR'));

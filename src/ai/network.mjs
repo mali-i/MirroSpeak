@@ -26,7 +26,7 @@ export function networkError(error, endpoint) {
   const redirectBlocked = /redirect.*(?:cancel|block)|unexpected redirect/i.test(messages);
   const code = (redirectBlocked ? 'REDIRECT_BLOCKED' : null) || chromiumCode || codes.find(value => typeof value === 'string' && /^[A-Z][A-Z0-9_]{1,80}$/.test(value)) || 'NETWORK_ERROR';
   let hint = '请检查网络、系统代理和 API 地址。';
-  if (code === 'REDIRECT_BLOCKED') hint = '服务商返回重定向，已阻止自动转发 Key 和视频。请检查 Base URL 与接口路径；模型查询成功不代表支持文件上传。';
+  if (code === 'REDIRECT_BLOCKED') hint = '服务商返回重定向，已阻止自动转发 Key 和视频。请检查 Base URL 与接口路径；请核对百炼工作空间的 API 地址。';
   else if (/ENOTFOUND|EAI_AGAIN|NAME_NOT_RESOLVED/.test(code)) hint = '域名解析失败，请检查 API 地址、DNS 和系统代理。';
   else if (/CONNECTION_CLOSED/.test(code)) hint = '服务端响应完成前连接被关闭，可能与代理、中转站或长请求超时有关；请勿连续重试，以免重复计费。';
   else if (/ECONNRESET|CONNECTION_RESET/.test(code)) hint = '连接被重置，请检查系统代理或中转站是否可访问。';

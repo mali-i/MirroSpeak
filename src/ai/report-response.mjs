@@ -1,8 +1,9 @@
 import { validateReport } from './core.mjs';
 
-function invalid(message) {
+function invalid(message, recoverable = true) {
   const error = new Error(message);
   error.code = 'REPORT_RESPONSE_INVALID';
+  error.recoverable = recoverable;
   return error;
 }
 
@@ -39,17 +40,13 @@ export function parseReportText(text) {
 }
 
 export function parseReportResponse(response, duration) {
-  if (response?.error) throw invalid('服务商在成功状态码中返回了错误对象，未生成报告。');
-  if (!Array.isArray(response?.candidates)) {
-    throw invalid(response?.choices ? '中转站返回了 OpenAI 格式，当前请求要求 Gemini 原生 candidates 格式。' : '服务商响应缺少 Gemini candidates 字段，请检查原生协议兼容性。');
-  }
-  const candidate = response.candidates[0];
-  if (!candidate) throw invalid('服务商没有返回候选结果，可能被内容规则拦截。');
-  if (candidate.finishReason !== 'STOP') throw invalid(candidate.finishReason === 'MAX_TOKENS' ? '模型达到输出上限，报告被截断，未保存不完整笔记。' : '模型没有正常完成输出，可能被内容规则拦截或中转站未传递完成状态。');
-  const parts = candidate.content?.parts;
-  if (!Array.isArray(parts)) throw invalid('模型响应缺少 content.parts 文本结构。');
-  const text = parts.filter(part => part && part.thought !== true && typeof part.text === 'string').map(part => part.text).join('');
-  if (!text.trim()) throw invalid('模型没有返回报告正文（可能仅返回了思考内容）。');
+  if (response?.error) throw invalid('服务商返回错误对象，未生成报告。', false);
+  const choice = response?.choices?.[0];
+  if (!choice) throw invalid('服务商响应缺少文本候选结果，请检查 Qwen-Omni 接口配置。', false);
+  if (choice.finish_reason === 'length') throw invalid('模型达到输出上限，报告被截断，未保存不完整笔记。', false);
+  const text = choice.message?.content;
+  if (typeof text !== 'string' || !text.trim()) throw invalid('服务商未返回报告正文，当前响应无法重新解析为笔记。', false);
+  if (choice.finish_reason !== 'stop') throw invalid('模型未正常完成输出，未保存不完整笔记。', false);
   const raw = parseReportText(text);
   try { return validateReport(raw, duration); }
   catch (error) { throw invalid(`报告已解析，但内容校验失败：${error.message}`); }

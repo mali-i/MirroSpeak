@@ -1,3 +1,4 @@
+const sse = value => new Response(`data: ${JSON.stringify(value)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -6,10 +7,10 @@ import path from 'node:path';
 import { build } from 'esbuild';
 
 // Exercise real IPC orchestration with isolated in-memory Electron/Store boundaries.
-test('IPC lifecycle: private key, report versions, edits, relocation, and cleanup recovery', async () => {
+test('IPC lifecycle: private key, report versions, edits, relocation, and provider configuration', async () => {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'videolog-ipc-')));
   const oldFetch = globalThis.fetch;
-  globalThis.__aiTest = { handlers: new Map(), values: {}, chosen: null, cleanupFails: false };
+  globalThis.__aiTest = { handlers: new Map(), values: {}, chosen: null };
   const electron = `
     const state = globalThis.__aiTest;
     export const ipcMain = { handle: (name, fn) => state.handlers.set(name, fn) };
@@ -23,7 +24,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     delete(key) { delete globalThis.__aiTest.values[key]; }
   }`;
   try {
-    await build({ entryPoints: ['src/ai/main.mjs'], outfile: path.join(dir, 'main.mjs'), bundle: true, platform: 'node', format: 'esm', plugins: [{ name: 'electron-test-boundary', setup(b) {
+    await build({ entryPoints: ['src/ai/main.mjs'], outfile: path.join(dir, 'main.mjs'), bundle: true, platform: 'node', format: 'esm', banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" }, plugins: [{ name: 'electron-test-boundary', setup(b) {
       b.onResolve({ filter: /^(electron|electron-store)$/ }, args => ({ path: args.path, namespace: 'mock' }));
       b.onLoad({ filter: /.*/, namespace: 'mock' }, args => ({ contents: args.path === 'electron' ? electron : store }));
     } }] });
@@ -31,8 +32,12 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     registerAI({ withDirectoryAccess: async (_path, fn) => fn(), getDirectoryAccessForPath: target => target.startsWith(dir) ? { path: dir } : null });
     const events = [];
     const invoke = async (action, data) => globalThis.__aiTest.handlers.get(`ai:${action}`)({ sender: { isDestroyed: () => false, send(_channel, event) { events.push(event); } } }, data);
+    globalThis.__aiTest.values.encryptedKey = Buffer.from('encrypted:old-provider-key').toString('base64');
+    globalThis.__aiTest.values.baseUrl = 'https://old-provider.example';
     assert.equal((await invoke('settings')).data.hasKey, false);
-    assert.equal((await invoke('configure', { apiKey: 'private-key', model: 'gemini-test' })).success, true);
+    assert.equal((await invoke('settings')).data.baseUrl, '');
+    assert.equal((await invoke('test')).success, false);
+    assert.equal((await invoke('configure', { apiKey: 'private-key', model: 'qwen3.8-omni-flash', baseUrl: 'https://workspace.example/compatible-mode/v1' })).success, true);
     assert.equal(JSON.stringify((await invoke('settings')).data).includes('private-key'), false);
     assert.equal(globalThis.__aiTest.values.encryptedKey.includes('private-key'), false);
     const filePath = path.join(dir, 'original.mp4');
@@ -42,35 +47,25 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     globalThis.__aiTest.urls = [];
     globalThis.fetch = async (url, options) => {
       globalThis.__aiTest.urls.push(url);
-      if (url.includes('/upload/')) return new Response('{}', { headers: { 'x-goog-upload-url': url.replace('/upload/v1beta/files', '/session') } });
-      if (url.endsWith('/session')) { for await (const _chunk of options.body) {} return Response.json({ file: { name: 'files/test', uri: 'https://generativelanguage.googleapis.com/v1beta/files/test', state: 'ACTIVE' } }); }
-      if (options.method === 'DELETE') return new Response(null, { status: globalThis.__aiTest.cleanupFails ? 500 : 200 });
-      if (options.method !== 'POST') return Response.json({ name: 'models/gemini-test' });
-      return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ title: '笔记', summary: '摘要', chapters: [part], materials: [part], notes: [part] }) }] } }] });
+      if (options.method !== 'POST') return Response.json({ data: [{ id: 'qwen3.8-omni-flash' }] });
+      return sse({ choices: [{ index: 0, finish_reason: 'stop', delta: { content: JSON.stringify({ title: '笔记', summary: '摘要', chapters: [part], materials: [part], notes: [part] }) } }] });
     };
     const analyzed = await invoke('analyze', { filePath, duration: 10 });
     assert.equal(analyzed.success, true, analyzed.error);
     assert.equal(events.at(-1).status, 'complete');
     assert(events.some(event => event.stage === 'save'));
-    assert(events.some(event => event.stage === 'cleanup'));
     assert(events.at(-1).finishedAt >= events[0].startedAt);
     const first = analyzed.data.reports[0];
-    assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 0);
     await invoke('save', { id: original.id, reportId: first.id, notes: ['用户修改过的内容'] });
     const moved = path.join(dir, 'renamed.mp4'); await fs.rename(filePath, moved); movedVideo(filePath, moved);
-    globalThis.__aiTest.cleanupFails = true;
     const second = await invoke('analyze', { filePath: moved, duration: 10 });
     assert.equal(second.success, true, second.error);
     assert.equal(events.at(-1).status, 'complete');
-    assert.match(events.at(-1).warning, /清理失败/);
     assert.equal(second.data.id, original.id);
     assert.equal(second.data.reports.length, 2);
     assert.equal(second.data.reports[0].notes[0].text, '用户修改过的内容');
     assert.equal(second.data.reports[0].originalNotes[0].text, part.text);
-    assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 1);
-    globalThis.__aiTest.cleanupFails = false;
     await invoke('test');
-    assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 0);
     const relocated = path.join(dir, 'relocated.mp4'); await fs.rename(moved, relocated);
     assert.equal((await invoke('open', { id: original.id })).data.missing, true);
     const other = path.join(dir, 'different.mp4'); await fs.writeFile(other, 'other');
@@ -79,24 +74,17 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and cleanu
     globalThis.__aiTest.chosen = relocated;
     assert.equal((await invoke('relink', { id: original.id })).data.id, original.id);
     assert.equal((await invoke('open', { id: original.id })).data.missing, false);
-    // Historical official files must not be cleaned with the new relay's key.
-    globalThis.__aiTest.values.pendingCleanup = ['files/legacy'];
-    assert.equal((await invoke('configure', { model: 'gemini-test', baseUrl: 'https://relay.example/gemini' })).success, false);
-    const configured = await invoke('configure', { model: 'gemini-test', baseUrl: 'https://relay.example/gemini/v1beta/', apiKey: 'relay-key' });
-    assert.equal(configured.data.baseUrl, 'https://relay.example/gemini');
+    assert.equal((await invoke('configure', { model: 'qwen3.8-omni-flash', baseUrl: 'https://new.example/compatible-mode/v1' })).success, false);
+    const configured = await invoke('configure', { model: 'qwen3.8-omni-flash', baseUrl: 'https://new.example/compatible-mode/v1/', apiKey: 'new-key' });
+    assert.equal(configured.data.baseUrl, 'https://new.example/compatible-mode/v1');
     globalThis.__aiTest.urls = [];
     assert.equal((await invoke('test')).success, true);
     const proxied = await invoke('analyze', { filePath: relocated, duration: 10 });
     assert.equal(proxied.success, true, proxied.error);
-    assert.equal(proxied.data.reports.at(-1).baseUrl, 'https://relay.example/gemini');
-    assert(globalThis.__aiTest.urls.every(url => url.startsWith('https://relay.example/gemini/')));
-    assert(globalThis.__aiTest.urls.some(url => url.includes('/upload/v1beta/files')));
-    assert(globalThis.__aiTest.urls.some(url => url.includes(':streamGenerateContent')));
-    assert.equal(globalThis.__aiTest.values.pendingCleanup.length, 1);
-    assert.equal(globalThis.__aiTest.values.pendingCleanup[0].baseUrl, 'https://generativelanguage.googleapis.com');
+    assert(globalThis.__aiTest.urls.every(url => url.startsWith('https://new.example/compatible-mode/v1/')));
     const stored = globalThis.__aiTest.values.videos.find(item => item.id === original.id);
     const json = JSON.stringify({ title: '恢复笔记', summary: '摘要', chapters: [part], materials: [], notes: [part] });
-    stored.pendingAnalysis = { response: { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '```json\n' + json + '\n```' }] } }] }, duration: 10, model: 'gemini-test', sourceHash: stored.hash, createdAt: new Date().toISOString() };
+    stored.pendingAnalysis = { response: { choices: [{ finish_reason: 'stop', message: { content: '```json\n' + json + '\n```' } }] }, duration: 10, model: 'qwen3.8-omni-flash', sourceHash: stored.hash, createdAt: new Date().toISOString() };
     const callsBeforeRecovery = globalThis.__aiTest.urls.length;
     const recovered = await invoke('recover', { id: original.id });
     assert.equal(recovered.success, true, recovered.error);

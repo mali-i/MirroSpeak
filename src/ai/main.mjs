@@ -5,8 +5,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fingerprint, identify, markdown } from './core.mjs';
 import { parseReportResponse } from './report-response.mjs';
-import { analyze, checkConnection, removeRemote, setRequestTransport } from './gemini.mjs';
-import { DEFAULT_BASE_URL, normalizeBaseUrl } from './endpoint.mjs';
+import { analyze, checkConnection, setRequestTransport } from './qwen.mjs';
+import { DEFAULT_BASE_URL, DEFAULT_MODEL, normalizeBaseUrl } from './endpoint.mjs';
 
 // Separate from generic renderer-accessible configuration.
 const database = new Store({ name: 'video-notes' });
@@ -17,13 +17,11 @@ export function linkedAccess(targetPath) {
 }
 const key = () => {
   const value = database.get('encryptedKey');
-  if (!value || !safeStorage.isEncryptionAvailable()) throw new Error('请先在设置中保存 API Key。');
+  if (database.get('provider') !== 'qwen-omni' || !value || !safeStorage.isEncryptionAvailable()) throw new Error('请先在设置中保存 API Key。');
   return safeStorage.decryptString(Buffer.from(value, 'base64'));
 };
-const configuredBaseUrl = () => normalizeBaseUrl(database.get('baseUrl', DEFAULT_BASE_URL));
-// Older cleanup entries were uploaded to the official service. Never reroute them to a new proxy.
-const pendingCleanup = () => database.get('pendingCleanup', []).map(item => typeof item === 'string' ? { name: item, baseUrl: DEFAULT_BASE_URL } : item);
-const publicSettings = () => ({ baseUrl: configuredBaseUrl(), inputMode: database.get('inputMode', 'auto'), model: database.get('model', 'gemini-3.8-flash'), hasKey: !!database.get('encryptedKey'), secureStorage: safeStorage.isEncryptionAvailable() });
+const configuredBaseUrl = () => database.get('provider') === 'qwen-omni' ? database.get('baseUrl', DEFAULT_BASE_URL) : DEFAULT_BASE_URL;
+const publicSettings = () => ({ provider: 'qwen-omni', baseUrl: configuredBaseUrl(), model: database.get('provider') === 'qwen-omni' ? database.get('model', DEFAULT_MODEL) : DEFAULT_MODEL, hasKey: database.get('provider') === 'qwen-omni' && !!database.get('encryptedKey'), secureStorage: safeStorage.isEncryptionAvailable() });
 export function movedVideo(sourcePath, targetPath) {
   for (const record of records()) {
     if (record.path === sourcePath) writeRecord({ ...record, path: targetPath, name: path.basename(targetPath) });
@@ -35,7 +33,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
   if (fetchImpl) setRequestTransport(fetchImpl);
   const handle = (name, fn) => ipcMain.handle(`ai:${name}`, async (event, data) => {
     try { return { success: true, data: await fn(data, event) }; }
-    catch (error) { return { success: false, recoverable: error.code === 'REPORT_RESPONSE_INVALID', error: error.name === 'AbortError' ? '任务已取消。' : error.name === 'TimeoutError' ? '任务超时，请手动重试。' : error.message }; }
+    catch (error) { return { success: false, recoverable: error.code === 'REPORT_RESPONSE_INVALID' && error.recoverable !== false, error: error.name === 'AbortError' ? '任务已取消。' : error.name === 'TimeoutError' ? '任务超时，请手动重试。' : error.message }; }
   });
   const checkedPath = async target => {
     if (typeof target !== 'string' || !/\.(mp4|webm)$/i.test(target)) throw new Error('请选择 MP4 或 WebM 视频。');
@@ -53,28 +51,21 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       return record;
     });
   };
-  const flushCleanup = async (apiKey, baseUrl) => {
-    const remaining = [];
-    for (const item of pendingCleanup()) {
-      if (item.baseUrl !== baseUrl) { remaining.push(item); continue; }
-      try { await removeRemote(apiKey, item.name, item.baseUrl); } catch { remaining.push(item); }
-    }
-    database.set('pendingCleanup', remaining);
-    return remaining.length;
-  };
   handle('settings', () => publicSettings());
-  handle('configure', ({ apiKey, model, baseUrl = DEFAULT_BASE_URL, inputMode = 'auto' }) => {
+  handle('configure', ({ apiKey, model, baseUrl = DEFAULT_BASE_URL }) => {
     if (active) throw new Error('请等待当前任务结束后再修改配置。');
-    if (typeof model !== 'string' || !/^gemini-[a-zA-Z0-9._-]+$/.test(model.trim())) throw new Error('请输入有效的 Gemini 模型名称。');
-    if (!['auto', 'inline', 'files'].includes(inputMode)) throw new Error('无效的视频提交方式。');
+    if (typeof model !== 'string' || !model.trim() || model.trim().length > 200 || /[\s\x00-\x1f\x7f]/.test(model.trim())) throw new Error('请输入有效的模型 ID（不超过 200 字符，不能包含空白或控制字符）。');
+    if (apiKey !== undefined && typeof apiKey !== 'string') throw new Error('API Key 格式无效。');
+    apiKey = apiKey?.trim();
     const normalizedBase = normalizeBaseUrl(baseUrl);
-    if (normalizedBase !== configuredBaseUrl() && database.get('encryptedKey') && !apiKey?.trim()) throw new Error('更换 Base URL 时请重新填写对应的 API Key。');
+    if ((database.get('provider') !== 'qwen-omni' || normalizedBase !== configuredBaseUrl()) && !apiKey?.trim()) throw new Error('更换 Base URL 时请重新填写对应的 API Key。');
     if (apiKey) {
       if (!safeStorage.isEncryptionAvailable()) throw new Error('系统安全存储不可用，无法保存 Key。');
       if (typeof apiKey !== 'string' || apiKey.length > 500) throw new Error('API Key 格式无效。');
       database.set('encryptedKey', safeStorage.encryptString(apiKey.trim()).toString('base64'));
     }
-    database.set('inputMode', inputMode);
+    database.set('provider', 'qwen-omni');
+    database.delete('inputMode');
     database.set('baseUrl', normalizedBase);
     database.set('model', model.trim());
     return publicSettings();
@@ -85,11 +76,10 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
   });
   handle('test', async () => {
     const apiKey = key();
-    const model = database.get('model', 'gemini-3.8-flash');
+    const model = database.get('model', DEFAULT_MODEL);
     const baseUrl = configuredBaseUrl();
     const message = await checkConnection(apiKey, baseUrl, model);
-    const pending = await flushCleanup(apiKey, baseUrl);
-    return { message: `基础连接测试通过。${message}${pending ? '仍有远端临时文件未清理；请使用上传时的 Base URL 和 Key 再次测试连接重试。' : ''}` };
+    return { message: `基础连接测试通过。${message}` };
   });
   handle('library', () => records().filter(item => item.reports.length).map(item => ({ id: item.id, name: item.name, path: item.path, reportCount: item.reports.length })));
   handle('open', async ({ filePath, id }) => {
@@ -118,7 +108,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     } finally { stop(); }
   });
   handle('cancel', () => { active?.abort(); });
-  handle('analyze', async ({ filePath, duration }, event) => {
+  handle('analyze', async ({ filePath, duration, videoUrl }, event) => {
     if (active) throw new Error('已有视频正在分析，请等待或取消。');
     if (!Number.isFinite(duration) || duration <= 0 || duration > 900) throw new Error('首版支持最长 15 分钟的视频，请等待播放器加载时长。');
     const apiKey = key();
@@ -127,26 +117,22 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     active = controller;
     const timeout = setTimeout(() => controller.abort(new DOMException('任务超时', 'TimeoutError')), 20 * 60000);
     const taskId = crypto.randomUUID(), startedAt = Date.now();
-    let currentStage = 'validate', failedStage, failure, cleanupWarning = '';
+    let currentStage = 'validate', failedStage, failure;
     const progress = update => {
       const value = typeof update === 'string' ? { message: update } : update;
       currentStage = value.stage || currentStage;
       if (!event.sender.isDestroyed()) event.sender.send('ai:progress', { taskId, startedAt, status: 'running', ...value, stage: value.stage || currentStage });
     };
-    let remoteName;
     try {
       progress({ stage: 'validate', message: '正在读取视频并校验内容身份…' });
       const record = await resolve(filePath, controller.signal, info => progress({ stage: 'validate', message: '正在校验视频身份…', ...info, unit: 'bytes' }));
-      const model = database.get('model', 'gemini-3.8-flash');
+      const model = database.get('model', DEFAULT_MODEL);
       return await withDirectoryAccess(record.path, async () => {
         const stats = await fs.promises.stat(record.path);
         if (stats.size > 2 * 1024 ** 3) throw new Error('首版支持最大 2 GB 的视频。');
-        const report = await analyze({ apiKey, baseUrl, inputMode: database.get('inputMode', 'auto'), model, filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
+        const report = await analyze({ apiKey, baseUrl, videoUrl, model, filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
           const current = records().find(item => item.id === record.id) || record;
           writeRecord({ ...current, pendingAnalysis: { response, ...inputMetadata, duration, model, baseUrl, sourceHash: record.hash, createdAt: new Date().toISOString() } });
-        }, remote: name => {
-          remoteName = name;
-          database.set('pendingCleanup', [...pendingCleanup().filter(item => item.name !== name || item.baseUrl !== baseUrl), { name, baseUrl }]);
         } });
         controller.signal.throwIfAborted();
         progress({ stage: 'save', message: '正在复核原视频并保存笔记…' });
@@ -161,16 +147,9 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     } catch (error) {
       failure = error; failedStage = currentStage; throw error;
     } finally {
-      if (remoteName) {
-        progress({ stage: 'cleanup', message: '笔记处理已结束，正在删除远端临时文件…' });
-        try {
-          await removeRemote(apiKey, remoteName, baseUrl);
-          database.set('pendingCleanup', pendingCleanup().filter(item => item.name !== remoteName || item.baseUrl !== baseUrl));
-        } catch { cleanupWarning = '远端临时文件清理失败，可在设置中测试连接以重试。'; }
-      }
       clearTimeout(timeout);
       active = null;
-      progress({ stage: failure ? failedStage : 'complete', status: failure ? (failure.name === 'AbortError' ? 'cancelled' : 'failed') : 'complete', message: failure ? (failure.name === 'AbortError' ? '任务已取消。' : '处理未完成，请查看下方错误。') : '个人笔记已保存。', warning: cleanupWarning, finishedAt: Date.now() });
+      progress({ stage: failure ? failedStage : 'complete', status: failure ? (failure.name === 'AbortError' ? 'cancelled' : 'failed') : 'complete', message: failure ? (failure.name === 'AbortError' ? '任务已取消。' : '处理未完成，请查看下方错误。') : '个人笔记已保存。', finishedAt: Date.now() });
     }
   });
   handle('recover', ({ id }) => {
@@ -180,7 +159,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     if (!pending || pending.sourceHash !== record.hash) throw new Error('没有可以重新解析的本地响应。');
     const report = parseReportResponse(pending.response, pending.duration);
     const { response, ...metadata } = pending;
-    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usageMetadata || null, promptVersion: 2 });
+    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usage || null, promptVersion: 2 });
     delete record.pendingAnalysis;
     writeRecord(record);
     return record;

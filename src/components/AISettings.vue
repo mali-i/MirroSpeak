@@ -1,14 +1,13 @@
 <template>
   <section class="settings-section ai-settings">
-    <h3>AI 个人笔记 · Gemini BYOK</h3>
-    <p>使用你自己的 Gemini API Key，费用由服务商向你的 API 账户收取。仅在你主动分析时，将完整视频、音轨和 Key 发送至你配置的 API 服务，报告保存在本机。</p>
-    <button :disabled="busy || !ready" @click="baseUrl = 'https://api.teamorouter.com'">使用 TeamoRouter 地址</button>
-    <label>API Base URL<input v-model="baseUrl" :disabled="busy || !ready" placeholder="https://generativelanguage.googleapis.com" autocomplete="off" /></label>
-    <p class="hint">填写 Gemini 原生 API 服务根地址，可带路径前缀或以 /v1beta 结尾。TeamoRouter 使用 https://api.teamorouter.com，认证自动采用 Bearer。自动模式下 TeamoRouter 直接提交视频至 generateContent，绕过 Files API；仅兼容 OpenAI Chat API 的地址暂不适用。更换地址时请重新填写对应 Key。</p>
-    <label>视频提交方式<select v-model="inputMode" :disabled="busy || !ready"><option value="auto">自动（TeamoRouter 内联，其余 Files）</option><option value="inline">内联视频（绕过 Files API）</option><option value="files">Files API 上传</option></select></label>
-    <p class="hint">内联模式下，超过 12 MB 的视频使用本机 ffmpeg 压缩副本，保留完整音轨和时间轴，画面降至最大 320 像素、每秒 2 帧；原片不变。请求上限 20 MB，中转站是否接受内联视频仍需实测。</p>
-    <label>模型名称<input v-model="model" :disabled="busy || !ready" placeholder="gemini-3.8-flash" autocomplete="off" /></label>
-    <label>API Key<input v-model="apiKey" :disabled="busy || !ready" type="password" :placeholder="hasKey ? '已安全保存；留空保留当前 Key' : '输入 Gemini API Key'" autocomplete="off" /></label>
+    <h3>AI 个人笔记 · Qwen-Omni BYOK</h3>
+    <p>使用自己的阿里云百炼 API Key，由阿里云按调用量计费。仅在主动分析时提交视频与音轨，笔记保存在本机。</p>
+    <label>API Base URL<input v-model="baseUrl" :disabled="busy || !ready" placeholder="https://你的工作空间ID.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" autocomplete="off" /></label>
+    <p class="hint">从百炼控制台复制完整 OpenAI 兼容地址（以 /compatible-mode/v1 结尾），Key、地址和模型必须属于同一地域。更换地址时需重新填写 Key。</p>
+    <label>模型名称<input v-model="model" :disabled="busy || !ready" placeholder="例如 qwen3.8-omni-flash" autocomplete="off" /></label>
+    <p class="hint">填写百炼控制台中的完整模型 ID，所选模型需支持视频画面、音轨输入和文本输出。</p>
+    <label>API Key<input v-model="apiKey" :disabled="busy || !ready" type="password" :placeholder="hasKey ? '已安全保存；留空保留当前 Key' : '输入阿里云百炼 API Key'" autocomplete="off" /></label>
+    <p class="hint">本地视频超过 6 MiB 时使用 ffmpeg 压缩临时副本，保留完整时长，降低画面清晰度、帧率和音频码率，原片不变。视频页也可填写同一原视频的 HTTPS 公网链接，以保留原始素材质量。</p>
     <p v-if="secureStorage === false">系统安全存储不可用，暂不能保存 Key。</p>
     <p v-if="loading">正在连接 AI 服务并检查安全存储…</p>
     <div class="actions">
@@ -17,24 +16,23 @@
       <button :disabled="busy || !ready || !hasKey" @click="test">测试基础连接</button>
       <button :disabled="busy || !ready || !hasKey" @click="forget">删除 Key</button>
     </div>
-    <p class="hint">基础连接测试仅验证 Key 与模型查询，不调用模型生成、不上传测试视频。</p>
+    <p class="hint">基础连接测试仅验证 Key 与模型目录，不生成内容、不发送视频。请先保存配置，再测试连接。</p>
     <p role="status">{{ message }}</p>
-    <p class="hint">视频上限 15 分钟 / 2 GB。上传后尝试删除远端临时文件；清理失败可通过测试连接重试。Gemini 的可用地区与数据政策以服务商为准。</p>
+    <p class="hint">视频上限 15 分钟 / 2 GB。本地临时副本在任务结束后删除；公网链接的文件由你在对象存储中管理。</p>
   </section>
 </template>
 <script setup>
 import { ref, onMounted } from 'vue';
 import { invokeAI } from '../ai/client.mjs';
-const inputMode = ref('auto');
-const baseUrl = ref('https://generativelanguage.googleapis.com');
-const model = ref('gemini-3.8-flash'), apiKey = ref(''), hasKey = ref(false), secureStorage = ref(null), busy = ref(false), message = ref('');
+const baseUrl = ref('');
+const model = ref('qwen3.8-omni-flash'), apiKey = ref(''), hasKey = ref(false), secureStorage = ref(null), busy = ref(false), message = ref('');
 const ready = ref(false), loading = ref(true);
 async function run(action, data) {
   busy.value = true;
   try { return await invokeAI(window.electronAPI, action, data); }
   finally { busy.value = false; }
 }
-async function save() { try { const settings = await run('configure', { inputMode: inputMode.value, baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value }); baseUrl.value = settings.baseUrl; hasKey.value = settings.hasKey; apiKey.value = ''; message.value = '配置已保存。'; } catch (e) { message.value = e.message; } }
+async function save() { try { const settings = await run('configure', { baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value }); baseUrl.value = settings.baseUrl; hasKey.value = settings.hasKey; apiKey.value = ''; message.value = '配置已保存。'; } catch (e) { message.value = e.message; } }
 async function test() { try { message.value = '正在验证 Key 和模型查询，不发送视频…'; message.value = (await run('test')).message; } catch (e) { message.value = e.message; } }
 async function forget() { try { await run('forget-key'); hasKey.value = false; message.value = 'Key 已删除，本地报告保留。'; } catch (e) { message.value = e.message; } }
 async function loadSettings() {
@@ -44,7 +42,6 @@ async function loadSettings() {
   message.value = '';
   try {
     const settings = await run('settings');
-    inputMode.value = settings.inputMode || 'auto';
     baseUrl.value = settings.baseUrl;
     model.value = settings.model;
     hasKey.value = settings.hasKey;
