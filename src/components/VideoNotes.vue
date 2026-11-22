@@ -60,37 +60,56 @@
           </div>
         </div>
         <div class="report-pane">
-          <p v-if="loading">正在校验视频身份并加载报告…</p>
+          <p v-if="loading" class="report-loading" role="status">正在加载视频笔记…</p>
           <template v-if="report">
-            <div class="toolbar">
-              <select :value="version" :disabled="busy || editing" @change="version = $event.target.value">
-                <option v-for="item in record.reports.filter(item => item.schemaVersion === 2)" :key="item.id" :value="item.id">{{ new Date(item.createdAt).toLocaleString() }}{{ item.editedAt ? ' · 已编辑' : '' }}</option>
-              </select>
-              <button :disabled="busy || editing" @click="edit">编辑笔记</button>
-              <button :disabled="editing" @click="exportNotes">导出 Markdown</button>
+            <div class="report-tools">
+              <label class="version-control"><span>版本</span><select aria-label="笔记版本" :value="version" :disabled="busy || editing" @change="version = $event.target.value">
+                <option v-for="(item, index) in record.reports.filter(item => item.schemaVersion === 2)" :key="item.id" :value="item.id">{{ index + 1 }} · {{ new Date(item.createdAt).toLocaleString() }}{{ item.editedAt ? ' · 已编辑' : '' }}</option>
+              </select></label>
+              <div class="report-actions"><button :disabled="busy || editing" @click="edit">编辑</button><button :disabled="editing" @click="exportNotes">导出 Markdown</button></div>
             </div>
-            <h2>{{ report.title }}</h2><p class="prose">{{ report.summary }}</p>
-            <small>{{ report.model }} · {{ report.inputMode === 'inline' ? (report.compressed ? '压缩视频 · ' : '本地原视频 · ') : (report.inputMode === 'url' ? '原视频链接 · ' : '') }} 时间点由模型生成，请回看核实。图片来自原视频，正文为整理文字。</small>
-            <h3>主题导航</h3>
-            <div class="toolbar"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)">{{ item.title }}</button></div>
-            <h3>主题笔记</h3>
-            <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`">
-              <h4>{{ item.title }}</h4><p><strong>{{ item.takeaway }}</strong></p>
-              <div class="toolbar"><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
-              <textarea v-if="editing" v-model="draft[index]" rows="6" /><p v-else class="prose">{{ item.text }}</p>
-              <button v-if="index < 6 && (!record.missing || report.frames?.[index])" class="frame" :disabled="record.missing" @click="seek(item.sources[0].startMs)">
-                <VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.sources[0].startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" />
-              </button>
-            </article>
-            <h3>可复用素材</h3>
-            <p v-if="!report.materials.length">暂无可独立复用的素材。</p>
-            <article v-for="(item, index) in report.materials" :key="index"><h4>【{{ item.type }}】{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="toolbar"><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
-            <h3>待确认内容</h3>
-            <p v-if="!report.uncertainties.length">模型未标出待确认内容，仍建议回看核实。</p>
-            <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="toolbar"><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
-            <div v-if="editing" class="toolbar"><button :disabled="saving" @click="save">保存笔记</button><button :disabled="saving" @click="editing = false">放弃修改</button></div>
+            <div class="report-intro">
+              <h2>{{ report.title }}</h2>
+              <p class="report-summary prose">{{ report.summary }}</p>
+              <div class="report-meta"><span>{{ report.model }}</span><span>{{ report.inputMode === 'inline' ? (report.compressed ? '压缩视频' : '本地原视频') : report.inputMode === 'url' ? '原视频链接' : '视频分析' }}</span></div>
+              <p class="source-hint">时间引用可跳转回看，模型生成的时间点请核实。</p>
+            </div>
+            <nav class="report-navigation" aria-label="笔记内容导航">
+              <button @click="openSection('report-topics')">主题笔记 <span>{{ report.notes.length }}</span></button>
+              <button @click="openSection('report-materials')">可复用素材 <span>{{ report.materials.length }}</span></button>
+              <button @click="openSection('report-uncertainties')">待厘清内容 <span>{{ report.uncertainties.length }}</span></button>
+            </nav>
+            <section id="report-topics" class="report-section">
+              <h3>主题笔记</h3>
+              <nav class="topic-index" aria-label="主题导航"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)"><span>{{ String(index + 1).padStart(2, '0') }}</span>{{ item.title }}</button></nav>
+              <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`" class="topic-entry">
+                <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4></div>
+                <p class="takeaway">{{ item.takeaway }}</p>
+                <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
+                <textarea v-if="editing" v-model="draft[index]" :aria-label="`编辑主题：${item.title}`" rows="6" /><p v-else class="prose">{{ item.text }}</p>
+                <details v-if="index < 6 && (!record.missing || report.frames?.[index])" class="source-frame">
+                  <summary>查看原视频画面</summary>
+                  <button class="frame" :disabled="record.missing" @click="seek(item.sources[0].startMs)"><VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.sources[0].startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" /></button>
+                </details>
+              </article>
+            </section>
+            <section id="report-materials" class="report-section">
+              <h3>可复用素材 <span>{{ report.materials.length }}</span></h3>
+              <p v-if="!report.materials.length" class="section-empty">暂无可独立复用的素材。</p>
+              <article v-for="(item, index) in report.materials" :key="index">
+                <div class="entry-heading"><span class="material-type">{{ item.type }}</span><h4>{{ item.title }}</h4></div>
+                <p class="prose">{{ item.text }}</p>
+                <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
+              </article>
+            </section>
+            <section id="report-uncertainties" class="report-section">
+              <h3>待厘清内容 <span>{{ report.uncertainties.length }}</span></h3>
+              <p v-if="!report.uncertainties.length" class="section-empty">暂无标出的疑问，仍可结合原视频回顾。</p>
+              <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
+            </section>
+            <div v-if="editing" class="report-edit-actions"><span>正在编辑主题笔记</span><button :disabled="saving" @click="editing = false">放弃修改</button><button class="save-notes" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存笔记' }}</button></div>
           </template>
-          <div v-else-if="!loading" class="empty">分析后，这里会出现内容概览、主题笔记、可复用素材和待确认内容。</div>
+          <div v-else-if="!loading" class="report-empty"><span class="empty-caption">视频笔记</span><h2>把表达整理成可回顾的内容</h2><p>在左侧生成笔记后，这里会呈现主题梳理、可复用素材，以及需要进一步厘清的内容。</p><span class="empty-footnote">你的手动批注始终独立保留。</span></div>
         </div>
       </div>
     </section>
@@ -146,6 +165,7 @@ async function analyze() {
 }
 async function cancel() { cancelRequested.value = true; try { await call('cancel'); if (busy.value && task.value?.status === 'running') task.value = applyProgress(task.value, { message: '正在停止任务并清理临时文件，请稍候…' }); } catch (e) { error.value = e.message; cancelRequested.value = false; } }
 async function recover() { recovering.value = true; try { assign(await call('recover', { id: record.value.id })); error.value = ''; task.value = null; status.value = '已从本地响应恢复笔记，未调用模型。'; emit('updated'); } catch (e) { error.value = e.message; } finally { recovering.value = false; } }
+function openSection(id) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function openTopic(index) { document.getElementById(`topic-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function edit() { draft.value = report.value.notes.map(item => item.text); editing.value = true; }
 async function save() { saving.value = true; try { const id = version.value; record.value = await call('save', { id: record.value.id, reportId: id, notes: [...draft.value] }); editing.value = false; status.value = '笔记修改已保存。'; } catch (e) { error.value = e.message; } finally { saving.value = false; } }
@@ -162,6 +182,52 @@ onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.e
 .report-pane > .toolbar:first-child { padding-right: 24px; }
 .workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane, .report-pane { overflow-y: auto; padding: 24px; }.player-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: #f5f7fa; }.player-stage { flex: 0 0 auto; }.player-stage > video { display: block; width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-details { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
 button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; cursor: pointer; }button:disabled { opacity: .45; cursor: default; }.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }select { max-width: 100%; }.prose { white-space: pre-wrap; line-height: 1.85; }h2 { font-size: 24px; }h3 { margin-top: 30px; }h4 { margin: 10px 0; }article { border-bottom: 1px solid #eef2f7; padding: 14px 0; }.timestamp { background: transparent; color: #25815a; border: 0; padding: 0; font-size: 13px; }.frame { display: block; padding: 0; border: 0; width: min(100%, 320px); }textarea { width: 100%; padding: 12px; line-height: 1.8; border: 1px solid #b9d2c4; border-radius: 6px; font: inherit; }.error { color: #b42318 !important; }.empty, .missing { padding: 32px 0; color: #64748b; line-height: 1.8; }.missing button { display: block; margin-top: 12px; }
+.report-pane { min-width: 0; border-left: 1px solid #edf0ee; scrollbar-width: thin; }
+.report-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-right: 22px; padding-bottom: 16px; border-bottom: 1px solid #edf0ee; }
+.version-control { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font-size: 11px; color: #94a3b8; }
+.report-tools select { min-width: 0; max-width: 230px; padding: 5px 6px; background: transparent; border-color: transparent; color: #64748b; font-size: 11px; }
+.report-actions { display: flex; gap: 4px; margin-left: auto; }
+.report-actions button { padding: 5px 7px; border: 0; background: transparent; font-size: 12px; color: #64748b; }
+.report-actions button:hover:not(:disabled) { background: #f1f5f3; color: #24583f; }
+.report-intro { padding: 24px 0 20px; }
+.report-intro h2 { margin: 0 0 14px; font-size: 23px; font-weight: 600; line-height: 1.45; letter-spacing: -.4px; color: #243b30; overflow-wrap: anywhere; }
+.report-summary { margin: 0 0 16px; font-size: 14px; color: #475569; }
+.report-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: #94a3b8; }
+.source-hint { font-size: 11px; color: #94a3b8; margin: 6px 0 0; line-height: 1.7; }
+.report-navigation { display: flex; flex-wrap: wrap; gap: 6px 20px; border-top: 1px solid #edf0ee; border-bottom: 1px solid #edf0ee; padding: 10px 0; }
+.report-navigation button { padding: 4px 0; border: 0; background: transparent; font-size: 12px; color: #475569; }
+.report-navigation span, .report-section h3 span { color: #94a3b8; font-weight: 400; font-size: 11px; margin-left: 5px; }
+.report-section { scroll-margin-top: 16px; margin-top: 30px; }
+.report-section h3 { margin: 0 0 14px; font-size: 13px; font-weight: 600; color: #64748b; }
+.topic-index { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 0 18px; border-bottom: 1px solid #edf0ee; }
+.topic-index button { display: inline-flex; align-items: baseline; gap: 10px; border: 0; background: transparent; padding: 0; text-align: left; color: #475569; font-size: 12px; line-height: 1.7; }
+.topic-index span, .entry-number { color: #94a3b8; font-size: 11px; font-variant-numeric: tabular-nums; }
+.topic-index button:hover, .report-navigation button:hover { color: #25815a; }
+.report-section article { padding: 22px 0; scroll-margin-top: 16px; }
+.report-section article:last-child { border-bottom: 0; }
+.entry-heading { display: flex; align-items: baseline; gap: 10px; }
+.report-section h4 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.6; color: #334155; overflow-wrap: anywhere; }
+.takeaway { margin: 12px 0; padding-left: 12px; border-left: 2px solid #afc9ba; color: #456454; font-size: 13px; line-height: 1.85; }
+.report-section .prose { font-size: 14px; color: #475569; margin: 14px 0; overflow-wrap: anywhere; }
+.source-ranges { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.source-label { font-size: 11px; color: #94a3b8; }
+.source-ranges .timestamp { font-size: 11px; font-variant-numeric: tabular-nums; }
+.material-type { flex-shrink: 0; font-size: 11px; color: #25815a; }
+.source-frame { margin-top: 12px; }
+.source-frame summary { cursor: pointer; color: #94a3b8; font-size: 11px; }
+.source-frame .frame { margin-top: 10px; }
+.section-empty { color: #94a3b8; font-size: 12px; line-height: 1.8; }
+.report-edit-actions { position: sticky; bottom: -24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 0; border-top: 1px solid #e2e8e4; background: #fffffff5; }
+.report-edit-actions span { margin-right: auto; font-size: 12px; color: #64748b; }
+.report-edit-actions button { font-size: 12px; }
+.report-edit-actions .save-notes { background: #24583f; color: white; }
+.report-empty { padding: 48px 12px; max-width: 400px; }
+.empty-caption { color: #94a3b8; font-size: 12px; }
+.report-empty h2 { color: #475569; font-size: 20px; font-weight: 500; line-height: 1.6; margin: 14px 0; }
+.report-empty p { font-size: 13px; color: #94a3b8; line-height: 1.9; }
+.empty-footnote { display: block; margin-top: 24px; font-size: 11px; color: #94a3b8; }
+.report-loading { font-size: 13px; color: #94a3b8; padding-right: 24px; }
+.report-pane button:focus-visible, .report-pane select:focus-visible, .report-pane summary:focus-visible { outline: 2px solid #25815a; outline-offset: 3px; }
 .ai-compose { margin-top: 24px; padding: 18px 0 0; border-top: 1px solid #dce3df; }
 .ai-compose-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; }
 .ai-title-group { display: flex; flex-direction: column; gap: 5px; }
