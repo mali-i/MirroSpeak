@@ -15,6 +15,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     const state = globalThis.__aiTest;
     export const ipcMain = { handle: (name, fn) => state.handlers.set(name, fn) };
     export const app = {};
+    export const shell = { openExternal: async url => { state.openedUrl = url; } };
     export const dialog = { showOpenDialog: async () => ({ canceled: false, filePaths: [state.chosen] }) };
     export const safeStorage = { isEncryptionAvailable: () => true, encryptString: text => Buffer.from('encrypted:' + text), decryptString: bytes => bytes.toString().slice(10) };
   `;
@@ -45,6 +46,18 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     const filePath = path.join(dir, 'original.mp4');
     await fs.writeFile(filePath, 'video');
     const original = (await invoke('open', { filePath })).data;
+    const created = await invoke('annotation-save', { id: original.id, annotation: { timeMs: 2000, text: '出处来自微博', links: [{ url: 'https://weibo.com/example', title: '原微博' }] } });
+    assert.equal(created.success, true, created.error);
+    const annotation = created.data[0];
+    assert.equal((await invoke('annotation-link', { url: 'javascript:alert(1)' })).success, false);
+    assert.equal((await invoke('annotation-link', { url: annotation.links[0].url })).success, true);
+    assert.equal(globalThis.__aiTest.openedUrl, annotation.links[0].url);
+    assert.equal(original.reports.length, 0);
+    assert.deepEqual((await invoke('open', { filePath })).data.annotations, [annotation]);
+    const editedAnnotation = await invoke('annotation-save', { id: original.id, annotation: { ...annotation, text: '已核对：出处来自微博' } });
+    assert.equal(editedAnnotation.data[0].id, annotation.id);
+    assert.equal(editedAnnotation.data[0].createdAt, annotation.createdAt);
+    Object.assign(annotation, editedAnnotation.data[0]);
     const part = { title: '原意', text: '我的计划还没确定。', takeaway: '核心意思', type: '观点', sources: [{ startSeconds: 0, endSeconds: 5 }] };
     globalThis.__aiTest.urls = [];
     globalThis.fetch = async (url, options) => {
@@ -67,6 +80,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal(events.at(-1).status, 'complete');
     assert.equal(second.data.id, original.id);
     assert.equal(second.data.reports.length, 2);
+    assert.deepEqual(second.data.annotations, [annotation]);
     assert.equal(second.data.reports[0].notes[0].text, '用户修改过的内容');
     assert.equal(second.data.reports[0].originalNotes[0].text, part.text);
     await invoke('test');
@@ -95,6 +109,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal(recovered.data.reports.at(-1).title, '恢复笔记');
     assert.equal(recovered.data.pendingAnalysis, undefined);
     assert.equal(globalThis.__aiTest.urls.length, callsBeforeRecovery);
+    assert.equal((await invoke('annotation-delete', { id: original.id, annotationId: annotation.id })).data.length, 0);
     await fs.writeFile(relocated, 'changed');
     assert.equal((await invoke('open', { id: original.id })).data.missing, true);
     assert.equal((await invoke('analyze', { filePath: relocated, duration: 901 })).success, false);

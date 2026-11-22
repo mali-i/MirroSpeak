@@ -1,5 +1,6 @@
-import { app, ipcMain, dialog, safeStorage } from 'electron';
+import { app, ipcMain, dialog, safeStorage, shell } from 'electron';
 import Store from 'electron-store';
+import { validateAnnotation, externalUrl } from './annotations.mjs';
 import { getModelProfile } from './models.mjs';
 import { createAnalysisPlan } from './progress.mjs';
 import fs from 'node:fs';
@@ -178,6 +179,26 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     writeRecord(record);
     return record;
   });
+  handle('annotation-save', ({ id, annotation }) => {
+    const record = records().find(item => item.id === id);
+    if (!record) throw new Error('视频记录不存在。');
+    const clean = validateAnnotation(annotation);
+    const annotations = record.annotations || [];
+    const existing = annotation.id && annotations.find(item => item.id === annotation.id);
+    const now = new Date().toISOString();
+    const saved = { ...clean, id: existing?.id || crypto.randomUUID(), createdAt: existing?.createdAt || now, updatedAt: now };
+    record.annotations = [...annotations.filter(item => item.id !== saved.id), saved];
+    writeRecord(record);
+    return record.annotations;
+  });
+  handle('annotation-delete', ({ id, annotationId }) => {
+    const record = records().find(item => item.id === id);
+    if (!record) throw new Error('视频记录不存在。');
+    record.annotations = (record.annotations || []).filter(item => item.id !== annotationId);
+    writeRecord(record);
+    return record.annotations;
+  });
+  handle('annotation-link', async ({ url }) => { await shell.openExternal(externalUrl(url)); });
   handle('frame', ({ id, reportId, index, image }) => {
     const record = records().find(item => item.id === id);
     const report = record?.reports.find(item => item.id === reportId);

@@ -5,7 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   ai: (action, data) => {
-    const allowed = ['settings', 'configure', 'forget-key', 'test', 'library', 'open', 'relink', 'cancel', 'analyze', 'save', 'export', 'frame', 'recover'];
+    const allowed = ['settings', 'configure', 'forget-key', 'test', 'library', 'open', 'relink', 'cancel', 'analyze', 'save', 'export', 'frame', 'recover', 'annotation-save', 'annotation-delete', 'annotation-link'];
     if (!allowed.includes(action)) return Promise.reject(new Error('Unknown AI action'));
     return ipcRenderer.invoke(`ai:${action}`, data);
   },

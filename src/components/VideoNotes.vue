@@ -4,8 +4,9 @@
       <header><strong>{{ record?.name || video.name || '个人笔记' }}</strong><button @click="close">关闭</button></header>
       <div class="workspace">
         <div class="player-pane">
-          <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @loadedmetadata="loaded" @error="mediaError" />
+          <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @timeupdate="currentTime = $event.target.currentTime" @loadedmetadata="loaded" @error="mediaError" />
           <div v-else class="missing">原视频未找到，笔记仍可查看。<button :disabled="busy" @click="relink">重新定位原视频</button></div>
+          <VideoAnnotations ref="annotationsPanel" :record="record" :current-time="currentTime" :duration="duration" :missing="!!record?.missing" @pause="player?.pause()" @seek="seekAnnotation" @change="record.annotations = $event" />
           <p>文件名和路径变化不会改变内容身份。重新定位会校验完整文件指纹。</p>
           <button v-if="record" :disabled="busy" @click="relink">重新定位</button>
           <div class="consent">
@@ -63,6 +64,9 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import VideoFrame from './VideoFrame.vue';
+import VideoAnnotations from './VideoAnnotations.vue';
+const currentTime = ref(0), annotationsPanel = ref(null);
+function seekAnnotation(ms) { if (player.value) { player.value.pause(); player.value.currentTime = ms / 1000; } }
 import AnalysisProgress from './AnalysisProgress.vue';
 import { savedAISettings, refreshAISettings } from '../ai/settings-state.mjs';
 import { applyProgress, createAnalysisPlan } from '../ai/progress.mjs';
@@ -86,7 +90,7 @@ function time(ms) { return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1
 function loaded(event) { duration.value = Number.isFinite(event.target.duration) ? event.target.duration : 0; }
 function mediaError() { error.value = '视频无法播放。可重新定位原视频；已有笔记仍可查看。'; }
 function seek(ms) { if (player.value) { player.value.currentTime = ms / 1000; player.value.play().catch(() => {}); } }
-function close() { if (busy.value) { error.value = '请先取消任务，等待清理结束后再关闭。'; return; } if (editing.value && !window.confirm('放弃尚未保存的笔记修改？')) return; emit('close'); }
+function close() { if (busy.value) { error.value = '请先取消任务，等待清理结束后再关闭。'; return; } if (editing.value && !window.confirm('放弃尚未保存的笔记修改？')) return; if (annotationsPanel.value && !annotationsPanel.value.canLeave()) return; emit('close'); }
 async function relink() { if (editing.value && !window.confirm('放弃尚未保存的修改并重新定位？')) return; try { const value = await call('relink', { id: record.value.id }); if (value) { editing.value = false; assign(value); duration.value = 0; error.value = ''; emit('updated'); } } catch (e) { error.value = e.message; } }
 async function analyze() {
   if (editing.value) { error.value = '请先保存或放弃笔记修改。'; return; }
@@ -108,7 +112,7 @@ async function save() { saving.value = true; try { const id = version.value; rec
 async function exportNotes() { try { if (await call('export', { id: record.value.id, reportId: version.value })) status.value = 'Markdown 已导出。'; } catch (e) { error.value = e.message; } }
 async function saveFrame(index, image) { try { await call('frame', { id: record.value.id, reportId: version.value, index, image }); } catch (e) { error.value = `画面保存失败：${e.message}`; } }
 const unsubscribe = window.electronAPI.onAIProgress(update => { if (!busy.value) return; if (typeof update === 'string') task.value = applyProgress(task.value, { message: update }); else task.value = applyProgress(task.value, update); });
-onMounted(async () => { try { await refreshAISettings(window.electronAPI); settingsError.value = previewPlan.value ? '' : '请在设置中选择支持的模型并保存配置。'; assign(await call('open', props.video.id ? { id: props.video.id } : { filePath: props.video.path })); } catch (e) { error.value = e.message; } finally { loading.value = false; } });
+onMounted(async () => { try { try { await refreshAISettings(window.electronAPI); settingsError.value = previewPlan.value ? '' : '请在设置中选择支持的模型并保存配置。'; } catch (e) { settingsError.value = e.message; } assign(await call('open', props.video.id ? { id: props.video.id } : { filePath: props.video.path })); } catch (e) { error.value = e.message; } finally { loading.value = false; } });
 onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.electronAPI.ai('cancel'); });
 </script>
 <style scoped>
