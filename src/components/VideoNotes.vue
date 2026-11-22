@@ -108,7 +108,7 @@
               <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
             </section>
           </template>
-          <div v-else-if="!loading" class="report-empty"><span class="empty-caption">视频笔记</span><h2>把表达整理成可回顾的内容</h2><p>在左侧生成笔记后，这里会呈现主题梳理、可复用素材，以及需要进一步厘清的内容。</p><span class="empty-footnote">你的手动批注始终独立保留。</span></div>
+          <div v-else-if="!loading" class="report-empty"><span class="empty-caption">视频笔记</span><h2>把表达整理成可回顾的内容</h2><p>在左侧生成笔记后，这里会呈现主题梳理、可复用素材，以及需要进一步厘清的内容。</p></div>
         </div>
       </div>
     </section>
@@ -217,7 +217,6 @@ button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6p
 .empty-caption { color: #94a3b8; font-size: 12px; }
 .report-empty h2 { color: #475569; font-size: 20px; font-weight: 500; line-height: 1.6; margin: 14px 0; }
 .report-empty p { font-size: 13px; color: #94a3b8; line-height: 1.9; }
-.empty-footnote { display: block; margin-top: 24px; font-size: 11px; color: #94a3b8; }
 .report-loading { font-size: 13px; color: #94a3b8; padding-right: 24px; }
 .report-pane button:focus-visible, .report-pane select:focus-visible, .report-pane summary:focus-visible { outline: 2px solid #25815a; outline-offset: 3px; }
 .ai-compose { margin-top: 24px; padding: 18px 0 0; border-top: 1px solid #dce3df; }
