@@ -3,7 +3,6 @@
     <div class="gallery-info">
       <div class="gallery-heading">
         <span class="gallery-title">Recorded Videos</span>
-        <span class="gallery-path">{{ directory }}</span>
       </div>
       <div class="view-switcher" aria-label="Gallery view">
         <button
@@ -581,16 +580,6 @@ defineExpose({ refresh: loadVideos });
   font-size: 1.25rem;
   font-weight: 700;
   color: #2c3e50;
-}
-
-.gallery-path {
-  min-width: 0;
-  font-size: 0.85rem;
-  color: #7f8c8d;
-  font-family: monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .view-switcher {
