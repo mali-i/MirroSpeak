@@ -17,7 +17,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     export const app = {};
     export const shell = { openExternal: async url => { state.openedUrl = url; } };
     export const dialog = { showOpenDialog: async () => ({ canceled: false, filePaths: [state.chosen] }) };
-    export const safeStorage = { isEncryptionAvailable: () => true, encryptString: text => Buffer.from('encrypted:' + text), decryptString: bytes => bytes.toString().slice(10) };
+    export const safeStorage = { isEncryptionAvailable: () => state.storageAvailable !== false, getSelectedStorageBackend: () => 'gnome_libsecret', encryptString: text => Buffer.from('encrypted:' + text), decryptString: bytes => bytes.toString().slice(10) };
   `;
   const store = `export default class Store {
     get(key, fallback) { return structuredClone(globalThis.__aiTest.values[key] ?? fallback); }
@@ -43,6 +43,13 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal(globalThis.__aiTest.values.encryptedKey.includes('private-key'), false);
     assert.equal((await invoke('configure', { model: 'unknown-omni', baseUrl: 'https://workspace.example/compatible-mode/v1' })).success, false);
     assert.equal((await invoke('settings')).data.model, 'qwen3.8-omni-flash');
+    const encryptedKeyBeforeFailure = globalThis.__aiTest.values.encryptedKey;
+    globalThis.__aiTest.storageAvailable = false;
+    assert.equal((await invoke('settings')).data.secureStorage, false);
+    assert.equal((await invoke('configure', { apiKey: 'replacement-key', model: 'qwen3.8-omni-flash', baseUrl: 'https://workspace.example/compatible-mode/v1' })).success, false);
+    assert.equal(globalThis.__aiTest.values.encryptedKey, encryptedKeyBeforeFailure);
+    assert.equal((await invoke('test')).success, false);
+    globalThis.__aiTest.storageAvailable = true;
     const filePath = path.join(dir, 'original.mp4');
     await fs.writeFile(filePath, 'video');
     const original = (await invoke('open', { filePath })).data;

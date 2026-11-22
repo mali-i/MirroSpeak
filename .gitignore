@@ -59,8 +59,9 @@ typings/
 
 # dotenv environment variables file
 .env
-.env.test
-.env.local
+.env.*
+!.env.example
+!.env.*.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -118,9 +119,9 @@ ehthumbs.db
 
 # App-specific
 # User data directory (electron-store, thumbnails, etc.)
-# Only ignore if you don't want to version control user preferences
-# Uncomment the next line if needed:
-# userData/
+userData/
+video-notes.json
+credentials.json
 
 # Video storage directory (if in project)
 # videos/
@@ -130,6 +131,13 @@ ehthumbs.db
 # Local Apple signing assets
 signing/
 *.provisionprofile
+*.mobileprovision
+/profile.xml
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
 
 
 .llm-chat-history/*
@@ -137,5 +145,3 @@ signing/
 
 icon_generate
 icon_generate/*
-# Local signing profile
-/profile.xml

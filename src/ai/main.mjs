@@ -1,3 +1,4 @@
+import { isSecureStorageAvailable } from './storage-security.mjs';
 import { app, ipcMain, dialog, safeStorage, shell } from 'electron';
 import Store from 'electron-store';
 import { validateAnnotation, externalUrl } from './annotations.mjs';
@@ -20,11 +21,11 @@ export function linkedAccess(targetPath) {
 }
 const key = () => {
   const value = database.get('encryptedKey');
-  if (database.get('provider') !== 'qwen-omni' || !value || !safeStorage.isEncryptionAvailable()) throw new Error('请先在设置中保存 API Key。');
+  if (database.get('provider') !== 'qwen-omni' || !value || !isSecureStorageAvailable(safeStorage)) throw new Error('请先在设置中保存 API Key。');
   return safeStorage.decryptString(Buffer.from(value, 'base64'));
 };
 const configuredBaseUrl = () => database.get('provider') === 'qwen-omni' ? database.get('baseUrl', DEFAULT_BASE_URL) : DEFAULT_BASE_URL;
-const publicSettings = () => ({ provider: 'qwen-omni', baseUrl: configuredBaseUrl(), model: database.get('provider') === 'qwen-omni' ? database.get('model', DEFAULT_MODEL) : DEFAULT_MODEL, hasKey: database.get('provider') === 'qwen-omni' && !!database.get('encryptedKey'), secureStorage: safeStorage.isEncryptionAvailable() });
+const publicSettings = () => ({ provider: 'qwen-omni', baseUrl: configuredBaseUrl(), model: database.get('provider') === 'qwen-omni' ? database.get('model', DEFAULT_MODEL) : DEFAULT_MODEL, hasKey: database.get('provider') === 'qwen-omni' && !!database.get('encryptedKey'), secureStorage: isSecureStorageAvailable(safeStorage) });
 export function movedVideo(sourcePath, targetPath) {
   for (const record of records()) {
     if (record.path === sourcePath) writeRecord({ ...record, path: targetPath, name: path.basename(targetPath) });
@@ -63,7 +64,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     const normalizedBase = normalizeBaseUrl(baseUrl);
     if ((database.get('provider') !== 'qwen-omni' || normalizedBase !== configuredBaseUrl()) && !apiKey?.trim()) throw new Error('更换 Base URL 时请重新填写对应的 API Key。');
     if (apiKey) {
-      if (!safeStorage.isEncryptionAvailable()) throw new Error('系统安全存储不可用，无法保存 Key。');
+      if (!isSecureStorageAvailable(safeStorage)) throw new Error('系统安全存储不可用，无法保存 Key。');
       if (typeof apiKey !== 'string' || apiKey.length > 500) throw new Error('API Key 格式无效。');
       database.set('encryptedKey', safeStorage.encryptString(apiKey.trim()).toString('base64'));
     }
