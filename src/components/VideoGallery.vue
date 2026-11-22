@@ -295,7 +295,7 @@ const openMenuPath = ref('');
 const viewMode = ref('cards');
 const selectedDate = ref('');
 const calendarSidebarList = ref(null);
-const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const weekdays = ['Sun', 'Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon'];
 let renameInput = null;
 
 const videosByDate = computed(() => {
@@ -335,7 +335,7 @@ const createMonthDays = (monthStart) => {
       videoCount: dayVideos.length,
       videos: dayVideos,
     };
-  });
+  }).reverse();
 };
 
 const calendarMonths = computed(() => {
