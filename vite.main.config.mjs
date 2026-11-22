@@ -1,4 +1,4 @@
 import { defineConfig } from 'vite';
 
-// https://vitejs.dev/config
-export default defineConfig({ build: { rollupOptions: { external: ['openai'] } } });
+// Forge packages the Vite output, so runtime dependencies must be bundled.
+export default defineConfig({});
