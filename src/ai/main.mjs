@@ -84,7 +84,6 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     const message = await checkConnection(apiKey, baseUrl, model);
     return { message: `基础连接测试通过。${message}` };
   });
-  handle('library', () => records().filter(item => item.reports.length).map(item => ({ id: item.id, name: item.name, path: item.path, reportCount: item.reports.length })));
   handle('open', async ({ filePath, id }) => {
     if (filePath) return resolve(filePath);
     const record = records().find(item => item.id === id);
