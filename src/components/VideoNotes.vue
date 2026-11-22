@@ -28,28 +28,33 @@
           <template v-if="report">
             <div class="toolbar">
               <select :value="version" :disabled="busy || editing" @change="version = $event.target.value">
-                <option v-for="item in record.reports" :key="item.id" :value="item.id">{{ new Date(item.createdAt).toLocaleString() }}{{ item.editedAt ? ' · 已编辑' : '' }}</option>
+                <option v-for="item in record.reports.filter(item => item.schemaVersion === 2)" :key="item.id" :value="item.id">{{ new Date(item.createdAt).toLocaleString() }}{{ item.editedAt ? ' · 已编辑' : '' }}</option>
               </select>
               <button :disabled="busy || editing" @click="edit">编辑笔记</button>
               <button :disabled="editing" @click="exportNotes">导出 Markdown</button>
             </div>
             <h2>{{ report.title }}</h2><p class="prose">{{ report.summary }}</p>
             <small>{{ report.model }} · {{ report.inputMode === 'inline' ? (report.compressed ? '压缩视频 · ' : '本地原视频 · ') : (report.inputMode === 'url' ? '原视频链接 · ' : '') }} 时间点由模型生成，请回看核实。图片来自原视频，正文为整理文字。</small>
-            <h3>章节</h3>
-            <article v-for="(item, index) in report.chapters" :key="index">
-              <button class="timestamp" :disabled="record.missing" @click="seek(item.startMs)">{{ time(item.startMs) }}–{{ time(item.endMs) }}</button>
-              <h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p>
-              <button v-if="index < 6 && (!record.missing || report.frames?.[index])" class="frame" :disabled="record.missing" @click="seek(item.startMs)">
-                <VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" />
+            <h3>主题导航</h3>
+            <div class="toolbar"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)">{{ item.title }}</button></div>
+            <h3>主题笔记</h3>
+            <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`">
+              <h4>{{ item.title }}</h4><p><strong>{{ item.takeaway }}</strong></p>
+              <div class="toolbar"><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
+              <textarea v-if="editing" v-model="draft[index]" rows="6" /><p v-else class="prose">{{ item.text }}</p>
+              <button v-if="index < 6 && (!record.missing || report.frames?.[index])" class="frame" :disabled="record.missing" @click="seek(item.sources[0].startMs)">
+                <VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.sources[0].startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" />
               </button>
             </article>
-            <h3>观点与素材</h3>
-            <article v-for="(item, index) in report.materials" :key="index"><button class="timestamp" :disabled="record.missing" @click="seek(item.startMs)">{{ time(item.startMs) }}</button><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p></article>
-            <h3>个人笔记</h3>
-            <article v-for="(item, index) in report.notes" :key="index"><button class="timestamp" :disabled="record.missing" @click="seek(item.startMs)">{{ time(item.startMs) }}</button><h4>{{ item.title }}</h4><textarea v-if="editing" v-model="draft[index]" rows="6" /><p v-else class="prose">{{ item.text }}</p></article>
+            <h3>可复用素材</h3>
+            <p v-if="!report.materials.length">暂无可独立复用的素材。</p>
+            <article v-for="(item, index) in report.materials" :key="index"><h4>【{{ item.type }}】{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="toolbar"><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
+            <h3>待确认内容</h3>
+            <p v-if="!report.uncertainties.length">模型未标出待确认内容，仍建议回看核实。</p>
+            <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="toolbar"><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
             <div v-if="editing" class="toolbar"><button :disabled="saving" @click="save">保存笔记</button><button :disabled="saving" @click="editing = false">放弃修改</button></div>
           </template>
-          <div v-else-if="!loading" class="empty">分析后，这里会出现内容概览、章节、观点素材和可编辑的个人笔记。</div>
+          <div v-else-if="!loading" class="empty">分析后，这里会出现内容概览、主题笔记、可复用素材和待确认内容。</div>
         </div>
       </div>
     </section>
@@ -76,7 +81,7 @@ let mounted = true;
 const report = computed(() => record.value?.reports.find(item => item.id === version.value));
 const source = computed(() => { const filePath = record.value?.path || props.video.path; return filePath ? `media://local${filePath.split('/').map(encodeURIComponent).join('/')}` : ''; });
 async function call(action, data) { const result = await window.electronAPI.ai(action, data); if (!result.success) { const error = new Error(result.error); error.recoverable = result.recoverable; throw error; } return result.data; }
-function assign(value) { recoverable.value = !!value.pendingAnalysis && value.pendingAnalysis.canReparse !== false && !!value.pendingAnalysis.response?.choices?.[0]?.message?.content?.trim(); record.value = value; version.value = value.reports.at(-1)?.id || ''; }
+function assign(value) { recoverable.value = !!value.pendingAnalysis && value.pendingAnalysis.canReparse !== false && !!value.pendingAnalysis.response?.choices?.[0]?.message?.content?.trim(); record.value = value; version.value = value.reports.filter(item => item.schemaVersion === 2).at(-1)?.id || ''; }
 function time(ms) { return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`; }
 function loaded(event) { duration.value = Number.isFinite(event.target.duration) ? event.target.duration : 0; }
 function mediaError() { error.value = '视频无法播放。可重新定位原视频；已有笔记仍可查看。'; }
@@ -97,6 +102,7 @@ async function analyze() {
 }
 async function cancel() { cancelRequested.value = true; try { await call('cancel'); if (busy.value && task.value?.status === 'running') task.value = applyProgress(task.value, { message: '正在停止任务并清理临时文件，请稍候…' }); } catch (e) { error.value = e.message; cancelRequested.value = false; } }
 async function recover() { recovering.value = true; try { assign(await call('recover', { id: record.value.id })); error.value = ''; task.value = null; status.value = '已从本地响应恢复笔记，未调用模型。'; emit('updated'); } catch (e) { error.value = e.message; } finally { recovering.value = false; } }
+function openTopic(index) { document.getElementById(`topic-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function edit() { draft.value = report.value.notes.map(item => item.text); editing.value = true; }
 async function save() { saving.value = true; try { const id = version.value; record.value = await call('save', { id: record.value.id, reportId: id, notes: [...draft.value] }); editing.value = false; status.value = '笔记修改已保存。'; } catch (e) { error.value = e.message; } finally { saving.value = false; } }
 async function exportNotes() { try { if (await call('export', { id: record.value.id, reportId: version.value })) status.value = 'Markdown 已导出。'; } catch (e) { error.value = e.message; } }

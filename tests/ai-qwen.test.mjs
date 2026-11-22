@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { analyze, checkConnection, request } from '../src/ai/qwen.mjs';
 const baseUrl = 'https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
-const segment = { title: '内容', text: '我还不确定。', startSeconds: 0, endSeconds: 5 };
-const report = { title: '笔记', summary: '摘要', chapters: [segment], materials: [], notes: [segment] };
+const segment = { title: '内容', text: '我还不确定。', takeaway: '核心意思', type: '观点', sources: [{ startSeconds: 0, endSeconds: 5 }] };
+const report = { title: '笔记', summary: '摘要', schemaVersion: 2, uncertainties: [], materials: [], notes: [segment] };
 function reply(text = JSON.stringify(report), finish = 'stop') {
   return new Response(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: text }, finish_reason: finish }] })}\n\ndata: ${JSON.stringify({ choices: [], usage: { total_tokens: 100 } })}\n\ndata: [DONE]\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
 }
@@ -25,8 +25,8 @@ test('Qwen SDK submits complete local video with text output and retains usage',
     assert.deepEqual(body.modalities, ['text']);
     assert.equal(body.stream_options.include_usage, true);
     assert.equal(body.response_format.type, 'json_object');
-    assert.equal(Buffer.from(body.messages[0].content[0].video_url.url.split(',')[1], 'base64').toString(), 'video-and-audio');
-    assert.match(body.messages[0].content[1].text, /综合音频和画面/);
+    assert.equal(Buffer.from(body.messages.find(message => message.role === 'user').content[0].video_url.url.split(',')[1], 'base64').toString(), 'video-and-audio');
+    assert.match(body.messages.find(message => message.role === 'user').content[1].text, /综合画面和声音/);
     return reply();
   };
   try {
@@ -42,7 +42,7 @@ test('signed original-video URL bypasses local encoding and is not stored in res
   const videoUrl = 'https://bucket.example/video.mp4?signature=secret';
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
-    assert.equal(body.messages[0].content[0].video_url.url, videoUrl);
+    assert.equal(body.messages.find(message => message.role === 'user').content[0].video_url.url, videoUrl);
     return reply();
   };
   try {

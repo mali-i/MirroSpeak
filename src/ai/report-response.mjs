@@ -48,6 +48,9 @@ export function parseReportResponse(response, duration) {
   if (typeof text !== 'string' || !text.trim()) throw invalid('服务商未返回报告正文，当前响应无法重新解析为笔记。', false);
   if (choice.finish_reason !== 'stop') throw invalid('模型未正常完成输出，未保存不完整笔记。', false);
   const raw = parseReportText(text);
+  if (raw && typeof raw === 'object' && raw.schemaVersion !== 2) {
+    throw invalid('模型返回了旧格式或缺少新版格式标识（schemaVersion: 2）。当前响应无法转换为新版主题笔记；请完全退出并重新启动应用后重新分析。仅重新解析已有响应无法解决。', false);
+  }
   try { return validateReport(raw, duration); }
   catch (error) { throw invalid(`报告已解析，但内容校验失败：${error.message}`); }
 }

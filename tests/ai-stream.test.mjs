@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { collectGeneration } from '../src/ai/qwen-stream.mjs';
 import { parseReportResponse } from '../src/ai/report-response.mjs';
-const segment = { title: '内容', text: '我还没决定。', startSeconds: 0, endSeconds: 2 };
-const report = { title: '笔记', summary: '摘要', chapters: [segment], materials: [], notes: [segment] };
+const segment = { title: '内容', text: '我还没决定。', takeaway: '核心意思', type: '观点', sources: [{ startSeconds: 0, endSeconds: 2 }] };
+const report = { title: '笔记', summary: '摘要', schemaVersion: 2, uncertainties: [], materials: [], notes: [segment] };
 const text = JSON.stringify(report);
 test('collects content separately from reasoning and retains trailing usage', async () => {
   async function* chunks() {

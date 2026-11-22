@@ -59,7 +59,7 @@ npm run upload
 
 ## AI 个人笔记（Qwen-Omni BYOK）
 
-使用阿里云百炼模型输出内容概览、章节、观点素材及个人笔记。支持的模型直接理解视频画面与音轨。默认模型 `qwen3.8-omni-flash`，设置中通过下拉列表选择模型，不再手填模型 ID；可选 Qwen3.8-Omni-Flash、Qwen3.5-Omni-Plus 和 Qwen3.5-Omni-Flash。模型的音画能力由明确配置决定，不根据名称猜测；旧配置中不在列表的模型需重新选择后保存。采用阿里云文档中的 OpenAI SDK / Chat Completions 协议，流式输出文本；不会自动重试收费请求。
+使用阿里云百炼模型输出内容概览、主题笔记、可复用素材及待确认内容。支持的模型直接理解视频画面与音轨。默认模型 `qwen3.8-omni-flash`，设置中通过下拉列表选择模型，不再手填模型 ID；可选 Qwen3.8-Omni-Flash、Qwen3.5-Omni-Plus 和 Qwen3.5-Omni-Flash。模型的音画能力由明确配置决定，不根据名称猜测；旧配置中不在列表的模型需重新选择后保存。采用阿里云文档中的 OpenAI SDK / Chat Completions 协议，流式输出文本；不会自动重试收费请求。
 
 1. 在 Settings → AI 个人笔记填写百炼工作空间的完整 OpenAI 兼容 API Base URL（通常以 `/compatible-mode/v1` 结尾）及同地域的 API Key，保存后测试基础连接。地址从自己的百炼控制台复制；应用不猜测工作空间 ID。
 2. 在 Gallery 打开已录制的视频，同意本次提交后生成笔记。费用计入自己的阿里云账户。
@@ -74,3 +74,7 @@ npm run upload
 校验、压缩、上传、等待、接收输出和保存展示阶段状态；压缩及上传显示当前阶段实际进度，不虚构模型分析百分比。可取消任务，取消后等待本地资源清理。
 
 官方参考：[Qwen-Omni](https://help.aliyun.com/zh/model-studio/qwen-omni)。
+
+### 笔记返回格式 v2
+
+返回 `schemaVersion: 2`、`title`、`summary`、`notes`、`materials`、`uncertainties`。主题笔记含 `title`、`takeaway`、`text`；素材含 `type`（观点／案例／方法）、`title`、`text`；待确认内容含 `title`、`text`。每项均通过 `sources` 提供 1–20 个 `startSeconds` / `endSeconds` 来源范围，保存时转换为毫秒。各列表最多 100 项，超限直接拒绝，不截断；笔记至少一项，其余可为空。主题导航从笔记生成，不单独生成章节。保留说话者视角，不强制改写成用户第一人称。旧格式不转换，需重新分析生成新版笔记。

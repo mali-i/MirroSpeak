@@ -45,12 +45,12 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     const filePath = path.join(dir, 'original.mp4');
     await fs.writeFile(filePath, 'video');
     const original = (await invoke('open', { filePath })).data;
-    const part = { title: '原意', text: '我的计划还没确定。', startSeconds: 0, endSeconds: 5 };
+    const part = { title: '原意', text: '我的计划还没确定。', takeaway: '核心意思', type: '观点', sources: [{ startSeconds: 0, endSeconds: 5 }] };
     globalThis.__aiTest.urls = [];
     globalThis.fetch = async (url, options) => {
       globalThis.__aiTest.urls.push(url);
       if (options.method !== 'POST') return Response.json({ data: [{ id: 'qwen3.8-omni-flash' }] });
-      return sse({ choices: [{ index: 0, finish_reason: 'stop', delta: { content: JSON.stringify({ title: '笔记', summary: '摘要', chapters: [part], materials: [part], notes: [part] }) } }] });
+      return sse({ choices: [{ index: 0, finish_reason: 'stop', delta: { content: JSON.stringify({ title: '笔记', summary: '摘要', schemaVersion: 2, uncertainties: [], materials: [part], notes: [part] }) } }] });
     };
     const analyzed = await invoke('analyze', { filePath, duration: 10 });
     assert.equal(analyzed.success, true, analyzed.error);
@@ -87,7 +87,7 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal(proxied.success, true, proxied.error);
     assert(globalThis.__aiTest.urls.every(url => url.startsWith('https://new.example/compatible-mode/v1/')));
     const stored = globalThis.__aiTest.values.videos.find(item => item.id === original.id);
-    const json = JSON.stringify({ title: '恢复笔记', summary: '摘要', chapters: [part], materials: [], notes: [part] });
+    const json = JSON.stringify({ title: '恢复笔记', summary: '摘要', schemaVersion: 2, uncertainties: [], materials: [], notes: [part] });
     stored.pendingAnalysis = { response: { choices: [{ finish_reason: 'stop', message: { content: '```json\n' + json + '\n```' } }] }, duration: 10, model: 'qwen3.8-omni-flash', sourceHash: stored.hash, createdAt: new Date().toISOString() };
     const callsBeforeRecovery = globalThis.__aiTest.urls.length;
     const recovered = await invoke('recover', { id: original.id });

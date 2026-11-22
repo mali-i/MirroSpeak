@@ -140,7 +140,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
         controller.signal.throwIfAborted();
         progress({ stage: 'save', message: '正在复核原视频并保存笔记…' });
         if (await fingerprint(record.path, controller.signal) !== record.hash) throw new Error('分析期间视频发生变化，报告未保存。');
-        const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 3 };
+        const version = { ...report, id: crypto.randomUUID(), createdAt: new Date().toISOString(), model, baseUrl, sourceHash: record.hash, duration, promptVersion: 4 };
         const current = records().find(item => item.id === record.id) || record;
         const updated = { ...current, reports: [...current.reports, version] };
         delete updated.pendingAnalysis;
@@ -162,7 +162,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     if (!pending || pending.sourceHash !== record.hash) throw new Error('没有可以重新解析的本地响应。');
     const report = parseReportResponse(pending.response, pending.duration);
     const { response, ...metadata } = pending;
-    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usage || null, promptVersion: 3 });
+    record.reports.push({ ...report, ...metadata, id: crypto.randomUUID(), usage: response.usage || null, promptVersion: 4 });
     delete record.pendingAnalysis;
     writeRecord(record);
     return record;
@@ -181,7 +181,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
   handle('frame', ({ id, reportId, index, image }) => {
     const record = records().find(item => item.id === id);
     const report = record?.reports.find(item => item.id === reportId);
-    if (!report || !Number.isInteger(index) || index < 0 || index >= Math.min(6, report.chapters.length) || typeof image !== 'string' || image.length > 150000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image)) throw new Error('无效的关键帧。');
+    if (!report || !Number.isInteger(index) || index < 0 || index >= Math.min(6, report.notes.length) || typeof image !== 'string' || image.length > 150000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image)) throw new Error('无效的关键帧。');
     report.frames ||= {};
     report.frames[index] = image;
     writeRecord(record);
