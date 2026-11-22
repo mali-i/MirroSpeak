@@ -63,10 +63,10 @@
           <p v-if="loading" class="report-loading" role="status">正在加载视频笔记…</p>
           <template v-if="report">
             <div class="report-tools">
-              <label class="version-control"><span>版本</span><select aria-label="笔记版本" :value="version" :disabled="busy || editing" @change="version = $event.target.value">
+              <label class="version-control"><span>版本</span><select aria-label="笔记版本" :value="version" :disabled="busy" @change="version = $event.target.value">
                 <option v-for="(item, index) in record.reports.filter(item => item.schemaVersion === 2)" :key="item.id" :value="item.id">{{ index + 1 }} · {{ new Date(item.createdAt).toLocaleString() }}{{ item.editedAt ? ' · 已编辑' : '' }}</option>
               </select></label>
-              <div class="report-actions"><button :disabled="busy || editing" @click="edit">编辑</button><button :disabled="editing" @click="exportNotes">导出 Markdown</button></div>
+              <div class="report-actions"><button @click="exportNotes">导出 Markdown</button></div>
             </div>
             <div class="report-intro">
               <h2>{{ report.title }}</h2>
@@ -86,7 +86,7 @@
                 <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4></div>
                 <p class="takeaway">{{ item.takeaway }}</p>
                 <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
-                <textarea v-if="editing" v-model="draft[index]" :aria-label="`编辑主题：${item.title}`" rows="6" /><p v-else class="prose">{{ item.text }}</p>
+                <p class="prose">{{ item.text }}</p>
                 <details v-if="index < 6 && (!record.missing || report.frames?.[index])" class="source-frame">
                   <summary>查看原视频画面</summary>
                   <button class="frame" :disabled="record.missing" @click="seek(item.sources[0].startMs)"><VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.sources[0].startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" /></button>
@@ -107,7 +107,6 @@
               <p v-if="!report.uncertainties.length" class="section-empty">暂无标出的疑问，仍可结合原视频回顾。</p>
               <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
             </section>
-            <div v-if="editing" class="report-edit-actions"><span>正在编辑主题笔记</span><button :disabled="saving" @click="editing = false">放弃修改</button><button class="save-notes" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存笔记' }}</button></div>
           </template>
           <div v-else-if="!loading" class="report-empty"><span class="empty-caption">视频笔记</span><h2>把表达整理成可回顾的内容</h2><p>在左侧生成笔记后，这里会呈现主题梳理、可复用素材，以及需要进一步厘清的内容。</p><span class="empty-footnote">你的手动批注始终独立保留。</span></div>
         </div>
@@ -132,7 +131,7 @@ import { applyProgress, createAnalysisPlan } from '../ai/progress.mjs';
 const task = ref(null), cancelRequested = ref(false), recoverable = ref(false), recovering = ref(false);
 const props = defineProps({ video: { type: Object, required: true } });
 const emit = defineEmits(['close', 'updated']);
-const record = ref(null), player = ref(null), duration = ref(0), version = ref(''), busy = ref(false), loading = ref(true), consent = ref(false), status = ref(''), error = ref(''), editing = ref(false), saving = ref(false), draft = ref([]);
+const record = ref(null), player = ref(null), duration = ref(0), version = ref(''), busy = ref(false), loading = ref(true), consent = ref(false), status = ref(''), error = ref('');
 const endpoint = computed(() => savedAISettings.value?.baseUrl || '未配置百炼 API 地址');
 const settingsError = ref('');
 const previewPlan = computed(() => {
@@ -149,10 +148,9 @@ function time(ms) { return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1
 function loaded(event) { duration.value = Number.isFinite(event.target.duration) ? event.target.duration : 0; }
 function mediaError() { error.value = '视频无法播放。可重新定位原视频；已有笔记仍可查看。'; }
 function seek(ms) { if (player.value) { player.value.currentTime = ms / 1000; player.value.play().catch(() => {}); } }
-function close() { if (busy.value) { error.value = '请先取消任务，等待清理结束后再关闭。'; return; } if (editing.value && !window.confirm('放弃尚未保存的笔记修改？')) return; if (annotationsPanel.value && !annotationsPanel.value.canLeave()) return; emit('close'); }
-async function relink() { if (editing.value && !window.confirm('放弃尚未保存的修改并重新定位？')) return; try { const value = await call('relink', { id: record.value.id }); if (value) { editing.value = false; assign(value); duration.value = 0; error.value = ''; emit('updated'); } } catch (e) { error.value = e.message; } }
+function close() { if (busy.value) { error.value = '请先取消任务，等待清理结束后再关闭。'; return; } if (annotationsPanel.value && !annotationsPanel.value.canLeave()) return; emit('close'); }
+async function relink() { try { const value = await call('relink', { id: record.value.id }); if (value) { assign(value); duration.value = 0; error.value = ''; emit('updated'); } } catch (e) { error.value = e.message; } }
 async function analyze() {
-  if (editing.value) { error.value = '请先保存或放弃笔记修改。'; return; }
   busy.value = true; cancelRequested.value = false; error.value = ''; status.value = '';
   task.value = applyProgress(null, { stage: 'validate', status: 'running', startedAt: Date.now(), message: '正在准备分析任务…' });
   try {
@@ -167,8 +165,6 @@ async function cancel() { cancelRequested.value = true; try { await call('cancel
 async function recover() { recovering.value = true; try { assign(await call('recover', { id: record.value.id })); error.value = ''; task.value = null; status.value = '已从本地响应恢复笔记，未调用模型。'; emit('updated'); } catch (e) { error.value = e.message; } finally { recovering.value = false; } }
 function openSection(id) { document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function openTopic(index) { document.getElementById(`topic-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-function edit() { draft.value = report.value.notes.map(item => item.text); editing.value = true; }
-async function save() { saving.value = true; try { const id = version.value; record.value = await call('save', { id: record.value.id, reportId: id, notes: [...draft.value] }); editing.value = false; status.value = '笔记修改已保存。'; } catch (e) { error.value = e.message; } finally { saving.value = false; } }
 async function exportNotes() { try { if (await call('export', { id: record.value.id, reportId: version.value })) status.value = 'Markdown 已导出。'; } catch (e) { error.value = e.message; } }
 async function saveFrame(index, image) { try { await call('frame', { id: record.value.id, reportId: version.value, index, image }); } catch (e) { error.value = `画面保存失败：${e.message}`; } }
 const unsubscribe = window.electronAPI.onAIProgress(update => { if (!busy.value) return; if (typeof update === 'string') task.value = applyProgress(task.value, { message: update }); else task.value = applyProgress(task.value, update); });
@@ -217,10 +213,6 @@ button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6p
 .source-frame summary { cursor: pointer; color: #94a3b8; font-size: 11px; }
 .source-frame .frame { margin-top: 10px; }
 .section-empty { color: #94a3b8; font-size: 12px; line-height: 1.8; }
-.report-edit-actions { position: sticky; bottom: -24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 14px 0; border-top: 1px solid #e2e8e4; background: #fffffff5; }
-.report-edit-actions span { margin-right: auto; font-size: 12px; color: #64748b; }
-.report-edit-actions button { font-size: 12px; }
-.report-edit-actions .save-notes { background: #24583f; color: white; }
 .report-empty { padding: 48px 12px; max-width: 400px; }
 .empty-caption { color: #94a3b8; font-size: 12px; }
 .report-empty h2 { color: #475569; font-size: 20px; font-weight: 500; line-height: 1.6; margin: 14px 0; }
