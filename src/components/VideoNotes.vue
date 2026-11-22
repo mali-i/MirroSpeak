@@ -5,10 +5,18 @@
       <div class="workspace">
         <div class="player-pane">
           <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @timeupdate="playbackUpdate" @seeking="annotationsPanel?.resetPlayback()" @seeked="playbackUpdate" @play="playbackUpdate" @loadedmetadata="loaded" @error="mediaError" />
-          <div v-else class="missing">原视频未找到，笔记仍可查看。<button :disabled="busy" @click="relink">重新定位原视频</button></div>
+          <div v-else-if="record?.missing" class="missing video-missing">
+            <strong>原视频未找到</strong>
+            <p>已有笔记和批注仍可查看，选择原文件即可恢复播放。</p>
+            <button class="relink-recovery" :disabled="busy" @click="relink">重新定位原视频</button>
+          </div>
+          <div v-if="record && !record.missing" class="video-tools">
+            <button class="relink-button" :disabled="busy" title="视频移动或改名后，可选择原文件恢复关联；已有笔记和批注会保留。" @click="relink">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v2" /><path d="M3 7h14a2 2 0 0 1 2 2v1M3 7v12a2 2 0 0 0 2 2h6" /><circle cx="17" cy="16" r="4" /><path d="m20 19 2 2" /></svg>
+              重新定位
+            </button>
+          </div>
           <VideoAnnotations ref="annotationsPanel" :record="record" :current-time="currentTime" :duration="duration" :missing="!!record?.missing" @pause="player?.pause()" @seek="seekAnnotation" @change="record.annotations = $event" />
-          <p>文件名和路径变化不会改变内容身份。重新定位会校验完整文件指纹。</p>
-          <button v-if="record" :disabled="busy" @click="relink">重新定位</button>
           <div class="consent">
             <strong>生成忠实梳理的个人笔记</strong>
             <p v-if="previewPlan"><strong>本次分析：{{ previewPlan.model }} · {{ previewPlan.method }}</strong></p>
@@ -126,5 +134,13 @@ onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.e
 header { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 6px 16px; border-bottom: 1px solid #e2e8f0; } .video-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; line-height: 20px; color: #64748b; } header .close-button { flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: #64748b; font-size: 22px; line-height: 1; border-radius: 5px; } header .close-button:hover { background: #f1f5f9; color: #334155; } header .close-button:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
 .workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane, .report-pane { overflow-y: auto; padding: 24px; }.player-pane { background: #f5f7fa; }.player-pane > video { width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
 button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; cursor: pointer; }button:disabled { opacity: .45; cursor: default; }.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }select { max-width: 100%; }.prose { white-space: pre-wrap; line-height: 1.85; }h2 { font-size: 24px; }h3 { margin-top: 30px; }h4 { margin: 10px 0; }article { border-bottom: 1px solid #eef2f7; padding: 14px 0; }.timestamp { background: transparent; color: #25815a; border: 0; padding: 0; font-size: 13px; }.frame { display: block; padding: 0; border: 0; width: min(100%, 320px); }textarea { width: 100%; padding: 12px; line-height: 1.8; border: 1px solid #b9d2c4; border-radius: 6px; font: inherit; }.error { color: #b42318 !important; }.empty, .missing { padding: 32px 0; color: #64748b; line-height: 1.8; }.missing button { display: block; margin-top: 12px; }
+.video-tools { display: flex; justify-content: flex-end; margin-top: 5px; }
+.video-tools .relink-button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 0; background: transparent; color: #7b8796; font-size: 12px; line-height: 18px; }
+.video-tools .relink-button:hover:not(:disabled) { color: #24583f; background: #e8eeea; }
+.relink-button:focus-visible, .relink-recovery:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
+.video-missing { padding: 24px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #fff; }
+.video-missing strong { color: #475569; font-size: 14px; font-weight: 500; }
+.video-missing p { margin: 8px 0 16px; }
+.video-missing .relink-recovery { display: inline-flex; margin: 0; font-size: 13px; }
 @media(max-width: 800px) { .notes-overlay { padding: 8px; }.workspace { display: block; overflow-y: auto; }.player-pane, .report-pane { overflow: visible; padding: 16px; } }
 </style>
