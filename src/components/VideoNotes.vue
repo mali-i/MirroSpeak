@@ -10,7 +10,7 @@
           <button v-if="record" :disabled="busy" @click="relink">重新定位</button>
           <div class="consent">
             <strong>生成忠实梳理的个人笔记</strong>
-            <p>将视频及音轨发送至 {{ endpoint }}，使用设置中已保存的 Key 和模型，可能产生费用。本地视频超过 6 MiB 时使用 ffmpeg 压缩副本（最大 320 像素、每秒 2 帧，音频压缩为单声道，保留完整时长），原片不变。非 Omni 模型先在本地转写原视频音轨，再将转写文字和视频一起发送给模型；首次使用会下载 Whisper 模型，转写缓存在本机。结果和编辑保存在本机。首版上限 15 分钟 / 2 GB。</p>
+            <p>将视频及音轨发送至 {{ endpoint }}，使用设置中已保存的 Key 和模型，可能产生费用。本地视频超过 6 MiB 时使用 ffmpeg 压缩副本（最大 320 像素、每秒 2 帧，音频压缩为单声道，保留完整时长），原片不变。需要语音转写的模型先在本地转写原视频音轨，再将转写文字和视频一起发送给模型；首次使用会下载 Whisper 模型，转写缓存在本机。结果和编辑保存在本机。首版上限 15 分钟 / 2 GB。</p>
             <label>原视频公网链接（可选）<input v-model="videoUrl" type="url" :disabled="busy" placeholder="https://…（如 OSS 签名链接）" /></label>
             <p>填写链接时，阿里云直接读取链接中的原视频，不压缩本地文件。请确保链接指向当前播放的同一视频、包含音轨，且在分析期间有效；时间点仍与本地原视频关联。</p>
             <label><input v-model="consent" type="checkbox" :disabled="busy" /> 我同意本次上传和分析</label>

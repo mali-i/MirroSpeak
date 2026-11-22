@@ -1,6 +1,7 @@
 import { app, ipcMain, dialog, safeStorage } from 'electron';
 import Store from 'electron-store';
 import { getModelProfile } from './models.mjs';
+import { createAnalysisPlan } from './progress.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -115,6 +116,8 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     if (!Number.isFinite(duration) || duration <= 0 || duration > 900) throw new Error('首版支持最长 15 分钟的视频，请等待播放器加载时长。');
     const apiKey = key();
     const baseUrl = configuredBaseUrl();
+    const model = database.get('model', DEFAULT_MODEL);
+    const plan = createAnalysisPlan(model, videoUrl);
     const controller = new AbortController();
     active = controller;
     const timeout = setTimeout(() => controller.abort(new DOMException('任务超时', 'TimeoutError')), 20 * 60000);
@@ -123,12 +126,11 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     const progress = update => {
       const value = typeof update === 'string' ? { message: update } : update;
       currentStage = value.stage || currentStage;
-      if (!event.sender.isDestroyed()) event.sender.send('ai:progress', { taskId, startedAt, status: 'running', ...value, stage: value.stage || currentStage });
+      if (!event.sender.isDestroyed()) event.sender.send('ai:progress', { taskId, startedAt, plan, status: 'running', ...value, stage: value.stage || currentStage });
     };
     try {
       progress({ stage: 'validate', message: '正在读取视频并校验内容身份…' });
       const record = await resolve(filePath, controller.signal, info => progress({ stage: 'validate', message: '正在校验视频身份…', ...info, unit: 'bytes' }));
-      const model = database.get('model', DEFAULT_MODEL);
       return await withDirectoryAccess(record.path, async () => {
         const stats = await fs.promises.stat(record.path);
         if (stats.size > 2 * 1024 ** 3) throw new Error('首版支持最大 2 GB 的视频。');

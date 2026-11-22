@@ -110,7 +110,9 @@ ${speech.text}
     return { ...report, speechSource: speech ? 'local-whisper' : 'video-audio', transcriptionModel: speech?.model || null, usage: response.usage || null, provider: 'qwen-omni', inputMode: videoUrl ? 'url' : 'inline', compressed: !!prepared?.compressed };
   } catch (error) { throw sdkError(error, signal); } finally {
     if (prepared) {
-      await prepared.cleanup();
+      if (prepared.compressed) progress({ message: '正在清理临时视频副本…', percent: null, current: null, total: null });
+      try { await prepared.cleanup(); }
+      catch { progress({ warning: '临时视频副本清理失败，可能仍占用本机空间。' }); }
     }
   }
 }

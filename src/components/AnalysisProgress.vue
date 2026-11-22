@@ -1,9 +1,10 @@
 <template>
   <section class="task-card" :class="task.status" aria-label="视频分析进度">
     <div class="task-heading"><strong>{{ heading }}</strong><span>已用 {{ elapsed }}</span></div>
+    <p v-if="task.plan">{{ task.plan.model }} · {{ task.plan.method }}</p>
     <ol class="steps">
-      <li v-for="(step, index) in ANALYSIS_STEPS" :key="step.id" :class="stepState(step.id)">
-        <span class="step-dot">{{ stepState(step.id) === 'done' ? '✓' : stepState(step.id) === 'skipped' ? '—' : index + 1 }}</span>{{ step.label }}<em v-if="stepState(step.id) === 'skipped'">无需</em>
+      <li v-for="(step, index) in steps" :key="step.id" :class="stepState(step.id)">
+        <span class="step-dot">{{ stepState(step.id) === 'done' ? '✓' : index + 1 }}</span>{{ step.label }}
       </li>
     </ol>
     <p role="status" aria-live="polite">{{ task.message }}</p>
@@ -16,14 +17,15 @@
 </template>
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-import { ANALYSIS_STEPS } from '../ai/progress.mjs';
+
 const props = defineProps({ task: { type: Object, required: true } });
 const now = ref(Date.now()); let timer;
 onMounted(() => { timer = setInterval(() => { now.value = Date.now(); }, 1000); });
 onBeforeUnmount(() => clearInterval(timer));
 const measurable = computed(() => Number.isFinite(props.task.percent));
-const currentIndex = computed(() => ANALYSIS_STEPS.findIndex(step => step.id === props.task.stage));
-const heading = computed(() => props.task.status === 'complete' ? '个人笔记已完成' : props.task.status === 'cancelled' ? '任务已取消' : props.task.status === 'failed' ? `${ANALYSIS_STEPS[currentIndex.value]?.label || '处理'}未完成` : '正在生成个人笔记');
+const steps = computed(() => props.task.plan?.steps || []);
+const currentIndex = computed(() => steps.value.findIndex(step => step.id === props.task.stage));
+const heading = computed(() => props.task.status === 'complete' ? '个人笔记已完成' : props.task.status === 'cancelled' ? '任务已取消' : props.task.status === 'failed' ? `${steps.value[currentIndex.value]?.label || '处理'}未完成` : '正在生成个人笔记');
 const elapsed = computed(() => { const seconds = Math.max(0, Math.floor(((props.task.finishedAt || now.value) - props.task.startedAt) / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; });
 const bytes = value => `${(value / 1024 / 1024).toFixed(1)} MB`;
 const detail = computed(() => {
@@ -34,11 +36,7 @@ const detail = computed(() => {
   return '';
 });
 function stepState(id) {
-  const index = ANALYSIS_STEPS.findIndex(step => step.id === id);
-  if (id === props.task.stage && props.task.status !== 'complete') return props.task.status === 'running' ? 'active' : 'stopped';
-  if (props.task.visited?.includes(id) && (props.task.status === 'complete' || index < currentIndex.value)) return 'done';
-  if ((props.task.status === 'complete' || index < currentIndex.value) && !props.task.visited?.includes(id)) return 'skipped';
-  return 'pending';
+  return props.task.stepStates?.[id] || 'pending';
 }
 </script>
 <style scoped>

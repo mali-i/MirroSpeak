@@ -40,3 +40,26 @@ test('identity checking reports measured bytes ending at full file size', async 
     assert.equal(events.at(-1).percent, 100);
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });
+
+test('analysis plans omit transcription for native audio/video models and name link submission', async () => {
+  const { createAnalysisPlan } = await import('../src/ai/progress.mjs');
+  const native = createAnalysisPlan('qwen3.8-omni-flash', 'https://example.com/video.mp4');
+  assert.equal(native.steps.some(step => step.id === 'transcribe'), false);
+  assert.equal(native.steps.find(step => step.id === 'upload').label, '提交素材链接');
+  const transcribed = createAnalysisPlan('qwen4-max');
+  assert.equal(transcribed.steps[1].id, 'transcribe');
+  assert.equal(transcribed.steps.find(step => step.id === 'upload').label, '提交素材');
+  assert.equal(native.steps.some(step => step.id === 'cleanup'), false);
+});
+
+test('explicit step states preserve failures and leave unexecuted steps pending', () => {
+  let task = applyProgress(null, { stage: 'validate', status: 'running' });
+  task = applyProgress(task, { stage: 'prepare' });
+  task = applyProgress(task, { message: '清理临时文件' });
+  task = applyProgress(task, { stage: 'prepare', status: 'failed' });
+  assert.deepEqual(task.stepStates, { validate: 'done', prepare: 'stopped' });
+  assert.equal(task.stepStates.save, undefined);
+  let success = applyProgress(null, { stage: 'save', status: 'running' });
+  success = applyProgress(success, { stage: 'complete', status: 'complete' });
+  assert.equal(success.stepStates.save, 'done');
+});

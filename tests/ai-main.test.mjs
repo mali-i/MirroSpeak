@@ -56,6 +56,8 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal(analyzed.success, true, analyzed.error);
     assert.equal(events.at(-1).status, 'complete');
     assert(events.some(event => event.stage === 'save'));
+    assert(events.every(event => event.plan.model === 'qwen3.8-omni-flash'));
+    assert(events.every(event => !event.plan.steps.some(step => step.id === 'transcribe')));
     assert(events.at(-1).finishedAt >= events[0].startedAt);
     const first = analyzed.data.reports[0];
     await invoke('save', { id: original.id, reportId: first.id, notes: ['用户修改过的内容'] });
