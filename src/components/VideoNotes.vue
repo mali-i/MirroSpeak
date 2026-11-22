@@ -4,7 +4,7 @@
       <header><strong>{{ record?.name || video.name || '个人笔记' }}</strong><button @click="close">关闭</button></header>
       <div class="workspace">
         <div class="player-pane">
-          <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @timeupdate="currentTime = $event.target.currentTime" @loadedmetadata="loaded" @error="mediaError" />
+          <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @timeupdate="playbackUpdate" @seeking="annotationsPanel?.resetPlayback()" @seeked="playbackUpdate" @play="playbackUpdate" @loadedmetadata="loaded" @error="mediaError" />
           <div v-else class="missing">原视频未找到，笔记仍可查看。<button :disabled="busy" @click="relink">重新定位原视频</button></div>
           <VideoAnnotations ref="annotationsPanel" :record="record" :current-time="currentTime" :duration="duration" :missing="!!record?.missing" @pause="player?.pause()" @seek="seekAnnotation" @change="record.annotations = $event" />
           <p>文件名和路径变化不会改变内容身份。重新定位会校验完整文件指纹。</p>
@@ -66,6 +66,11 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import VideoFrame from './VideoFrame.vue';
 import VideoAnnotations from './VideoAnnotations.vue';
 const currentTime = ref(0), annotationsPanel = ref(null);
+function playbackUpdate(event) {
+  const video = event.target;
+  currentTime.value = video.currentTime;
+  if (!video.paused && !video.seeking) annotationsPanel.value?.playback(video.currentTime);
+}
 function seekAnnotation(ms) { if (player.value) { player.value.pause(); player.value.currentTime = ms / 1000; } }
 import AnalysisProgress from './AnalysisProgress.vue';
 import { savedAISettings, refreshAISettings } from '../ai/settings-state.mjs';
