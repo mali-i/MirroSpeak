@@ -1,29 +1,32 @@
 <template>
   <section class="annotations" aria-label="视频批注">
     <div class="annotation-tools">
-      <button class="collapse-toggle" :aria-expanded="expanded" @click="expanded = !expanded">{{ expanded ? '▾' : '▸' }} 批注 <span>· {{ items.length }}</span></button>
-      <div class="tool-actions"><button class="add-button" :disabled="!record || missing || !duration || saving" @click="start()">＋ 添加批注</button><slot name="tools" /></div>
+      <button class="collapse-toggle" :aria-expanded="expanded" @click="expanded = !expanded"><svg :class="{ rotated: expanded }" width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6 4 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>批注<span class="count">{{ items.length }}</span></button>
+      <div class="tool-actions"><button class="add-button" :disabled="!record || missing || !duration || saving" @click="start()"><span aria-hidden="true">＋</span> 添加</button><span class="tool-divider" aria-hidden="true"></span><slot name="tools" /></div>
     </div>
     <form v-if="draft" class="editor" @submit.prevent="save">
-      <div class="heading"><strong>{{ draft.id ? '编辑批注' : '添加批注' }}</strong><label>时间 <input v-model="timestamp" aria-label="批注时间（分:秒）" class="time-input" placeholder="分:秒" required /></label></div>
-      <textarea ref="textInput" v-model="draft.text" rows="4" maxlength="10000" aria-label="批注内容" placeholder="补充想法、更正或来源…" />
-      <div v-for="(link, index) in draft.links" :key="index" class="link-editor">
-        <label>链接地址<input v-model="link.url" type="url" required placeholder="https://…" /></label>
-        <label>显示名称（选填）<input v-model="link.title" maxlength="200" placeholder="例如：原微博" /></label>
-        <button type="button" class="quiet" @click="draft.links.splice(index, 1)">移除引用</button>
-      </div>
-      <button type="button" class="quiet" :disabled="draft.links.length >= 20" @click="draft.links.push({ url: '', title: '' })">＋ 添加引用链接</button>
-      <div class="actions"><button type="button" :disabled="saving" @click="draft = null">取消</button><button class="primary" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</button></div>
+      <fieldset :disabled="saving">
+        <div class="editor-heading"><strong>{{ draft.id ? '编辑批注' : '新批注' }}</strong><label class="time-label">时间点<input v-model="timestamp" aria-label="批注时间（分:秒）" class="time-input" placeholder="分:秒" required /></label></div>
+        <textarea ref="textInput" v-model="draft.text" rows="3" maxlength="10000" aria-label="批注内容" placeholder="记下补充、更正或你的想法…" />
+        <div v-if="draft.links.length" class="reference-editor">
+          <div class="field-caption">来源引用 <span>{{ draft.links.length }}</span></div>
+          <div v-for="(link, index) in draft.links" :key="index" class="link-editor">
+            <span class="link-number">{{ String(index + 1).padStart(2, '0') }}</span>
+            <div class="link-fields"><label><span class="sr-only">引用 {{ index + 1 }} 链接地址</span><input v-model="link.url" type="url" required placeholder="粘贴 https:// 链接" /></label><label><span class="sr-only">引用 {{ index + 1 }} 显示名称（选填）</span><input v-model="link.title" maxlength="200" placeholder="显示名称（选填，例如：原微博）" /></label></div>
+            <button type="button" class="remove-link" :aria-label="`移除引用 ${index + 1}`" title="移除引用" @click="draft.links.splice(index, 1)">×</button>
+          </div>
+        </div>
+        <div class="editor-footer"><button type="button" class="quiet add-reference" :disabled="draft.links.length >= 20" @click="draft.links.push({ url: '', title: '' })">＋ 引用链接</button><div class="actions"><button type="button" class="quiet" @click="draft = null; error = ''">取消</button><button class="primary">{{ saving ? '保存中…' : '保存批注' }}</button></div></div>
+      </fieldset>
     </form>
     <p v-if="expanded && !items.length && !draft" class="hint">在当前时间点补充想法、更正或来源链接。</p>
-    <article v-for="item in visibleItems" :key="item.id">
+    <article v-for="item in visibleItems" :key="item.id" :class="{ 'playback-active': activeIds.has(item.id), 'being-edited': draft?.id === item.id }">
       <button class="timestamp" :disabled="missing" @click="$emit('seek', item.timeMs)">{{ time(item.timeMs) }}</button>
       <div class="annotation-content">
         <p v-if="item.text" class="body">{{ item.text }}</p>
-        <div v-if="item.links.length" class="references"><a v-for="(link, index) in item.links" :key="index" :href="link.url" :title="link.url" @click.prevent="openLink(link.url)">↗ {{ link.title || hostname(link.url) }}</a></div>
-        <small :title="`添加于 ${date(item.createdAt)}`">{{ item.updatedAt !== item.createdAt ? '编辑于' : '添加于' }} {{ date(item.updatedAt) }}</small>
+        <div v-if="item.links.length" class="references"><a v-for="(link, index) in item.links" :key="index" :href="link.url" :title="link.url" @click.prevent="openLink(link.url)"><span class="reference-icon" aria-hidden="true">↗</span><span>{{ link.title || hostname(link.url) }}<span v-if="link.title" class="reference-domain">{{ hostname(link.url) }}</span></span></a></div>
+        <div class="entry-footer"><small :title="`添加于 ${date(item.createdAt)}${item.updatedAt !== item.createdAt ? ' · 编辑于 ' + date(item.updatedAt) : ''}`">{{ new Date(item.createdAt).toLocaleDateString() }}{{ item.updatedAt !== item.createdAt ? ' · 已编辑' : '' }}</small><div class="entry-actions"><button :disabled="saving" @click="start(item)">编辑</button><button :disabled="saving" class="delete-action" @click="remove(item)">删除</button></div></div>
       </div>
-      <details><summary aria-label="批注操作">···</summary><div class="menu"><button :disabled="saving" @click="start(item)">编辑</button><button :disabled="saving" @click="remove(item)">删除</button></div></details>
     </article>
     <div v-if="deleted" class="undo" role="status">批注已删除 <button :disabled="saving" @click="undo">撤销</button></div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -109,21 +112,67 @@ async function openLink(url) { try { await call('annotation-link', { url }); } c
 onBeforeUnmount(() => { clearTimeout(undoTimer); resetPlayback(); });
 </script>
 <style scoped>
-.annotations { margin-top: 5px; color: #243b30; }
-.annotation-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 30px; }
-.tool-actions { display: flex; align-items: center; gap: 12px; }
-.annotation-tools .collapse-toggle, .annotation-tools .add-button { background: transparent; border: 0; padding: 5px 0; font-size: 12px; line-height: 18px; font-weight: 400; color: #64748b; }
-.annotation-tools .collapse-toggle:hover, .annotation-tools .add-button:hover:not(:disabled) { color: #24583f; }
-.collapse-toggle span { color: #94a3b8; }
+.annotations { margin-top: 6px; color: #334155; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #25815a; outline-offset: 3px; }
+.annotation-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 34px; }
+.collapse-toggle, .add-button, .quiet, .entry-actions button, .remove-link { border: 0; background: transparent; color: #64748b; }
+.collapse-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 8px 0; font-size: 12px; }
+.collapse-toggle svg { transition: transform .15s ease; }
+.collapse-toggle svg.rotated { transform: rotate(90deg); }
+.count { color: #94a3b8; font-size: 11px; font-variant-numeric: tabular-nums; }
+.tool-actions { display: flex; align-items: center; gap: 10px; }
+.add-button { padding: 6px 2px; font-size: 12px; }
+.tool-divider { width: 1px; height: 12px; background: #dce3df; }
+.collapse-toggle:hover, .add-button:hover:not(:disabled), .quiet:hover:not(:disabled) { color: #24583f; }
+article { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px solid #e8ece9; }
+.timestamp { align-self: start; padding: 1px 0; border: 0; background: transparent; text-align: left; color: #7b8796; font-size: 12px; line-height: 24px; font-variant-numeric: tabular-nums; }
+.timestamp:hover:not(:disabled), .playback-active .timestamp { color: #25815a; }
+.playback-active { border-top-color: #afc9ba; }
+.being-edited { opacity: .55; }
 .annotation-content { min-width: 0; }
-.references { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
-.references a { margin: 0; }
-.annotations article { display: grid; grid-template-columns: 48px minmax(0, 1fr) 24px; gap: 10px; padding: 14px 0; border-bottom: 1px solid #e2e8f0; align-items: start; }
-.annotations article:last-of-type { border-bottom: 0; }
-.annotations article .timestamp { padding: 2px 0; font-size: 12px; line-height: 22px; text-align: left; }
-.annotations .body { margin: 0; line-height: 1.8; }
-.annotations small { margin-top: 6px; color: #94a3b8; }
-button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
-
-.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }h3 { font-size: 15px; margin: 0; }h3 span, .hint, small { color: #718078; }button { cursor: pointer; padding: 7px 10px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; font: inherit; font-size: 13px; }button:disabled { opacity: .45; cursor: default; }.quiet, .timestamp { background: transparent; border: 0; padding-left: 0; }.timestamp { font-variant-numeric: tabular-nums; }.primary { background: #24583f; color: white; }.editor { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e7ede9; }.editor label { font-size: 12px; color: #64748b; }input, textarea { box-sizing: border-box; width: 100%; border: 1px solid #cbd9d0; border-radius: 6px; padding: 9px; font: inherit; color: #243b30; background: white; }textarea { margin: 12px 0 6px; resize: vertical; line-height: 1.7; }.time-input { width: 78px; margin-left: 6px; }.link-editor { display: grid; gap: 8px; padding: 8px 0 8px 12px; border-left: 2px solid #dce7e1; margin: 8px 0; }.link-editor input { display: block; margin-top: 4px; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }article { padding: 16px 0; border-bottom: 1px solid #edf1ee; }.body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; margin: 8px 0; }a { display: block; color: #25815a; font-size: 13px; margin: 6px 0; overflow-wrap: anywhere; }small { display: block; font-size: 11px; margin-top: 8px; }.hint { font-size: 13px; line-height: 1.8; }details { position: relative; }summary { cursor: pointer; list-style: none; padding: 0 8px; }summary::-webkit-details-marker { display: none; }.menu { position: absolute; right: 0; z-index: 2; padding: 6px; display: flex; gap: 4px; background: white; border: 1px solid #dce7e1; border-radius: 6px; box-shadow: 0 4px 14px #0001; }.undo { font-size: 13px; padding-top: 12px; }.error { color: #b42318; font-size: 13px; }.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.85; color: #64748b; }
+.references { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 10px; }
+.references a { display: inline-flex; align-items: baseline; gap: 7px; color: #356e50; font-size: 12px; line-height: 1.7; text-decoration: none; overflow-wrap: anywhere; max-width: 100%; }
+.references a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.reference-icon { color: #8ba595; flex-shrink: 0; }
+.reference-domain { margin-left: 8px; font-size: 10px; color: #94a3b8; }
+.entry-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+.entry-footer small { font-size: 10px; color: #94a3b8; line-height: 24px; }
+.entry-actions { display: flex; gap: 12px; }
+.entry-actions button { padding: 3px 0; font-size: 11px; line-height: 18px; color: #94a3b8; }
+.entry-actions button:hover:not(:disabled) { color: #24583f; }
+.entry-actions .delete-action:hover:not(:disabled) { color: #b42318; }
+.editor { margin: 4px 0 14px; padding: 14px 0 0; border-top: 1px solid #cbd9d0; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.editor-heading strong { font-size: 12px; font-weight: 500; color: #475569; }
+.time-label { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #94a3b8; }
+input, textarea { box-sizing: border-box; min-width: 0; width: 100%; color: #334155; border: 1px solid #dce3df; border-radius: 5px; background: #ffffff80; font-size: 12px; }
+input { padding: 8px 9px; }
+input::placeholder, textarea::placeholder { color: #9aa5b1; }
+.time-input { width: 72px; padding: 5px 8px; text-align: center; font-variant-numeric: tabular-nums; background: transparent; }
+textarea { display: block; padding: 10px 12px; resize: vertical; min-height: 88px; line-height: 1.85; font-size: 13px; }
+.reference-editor { margin-top: 14px; }
+.field-caption { font-size: 11px; color: #64748b; margin-bottom: 8px; }
+.field-caption span { margin-left: 5px; color: #94a3b8; }
+.link-editor { display: grid; grid-template-columns: 18px minmax(0, 1fr) 24px; gap: 8px; align-items: start; margin-top: 10px; }
+.link-number { color: #94a3b8; font-size: 10px; padding-top: 9px; font-variant-numeric: tabular-nums; }
+.link-fields { display: grid; gap: 5px; }
+.link-fields input { background: transparent; }
+.remove-link { padding: 4px; font-size: 18px; color: #94a3b8; }
+.remove-link:hover { color: #b42318; }
+.editor-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.quiet { padding: 6px 0; font-size: 12px; }
+.actions { display: flex; gap: 16px; margin-left: auto; }
+.primary { border: 1px solid #b9cdbf; border-radius: 5px; background: transparent; color: #356e50; padding: 7px 12px; font-size: 12px; }
+.primary:hover:not(:disabled) { background: #e8efe9; border-color: #8ba595; }
+.hint { font-size: 12px; line-height: 1.8; margin: 8px 0 16px; color: #94a3b8; }
+.undo { display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 12px; color: #64748b; }
+.undo button { border: 0; background: transparent; color: #25815a; font-size: 12px; padding: 4px; }
+.error { color: #b42318; font-size: 12px; line-height: 1.7; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (prefers-reduced-motion: reduce) { .collapse-toggle svg { transition: none; } }
 </style>
