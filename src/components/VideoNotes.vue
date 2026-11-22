@@ -19,17 +19,36 @@
             </button>
             </template>
           </VideoAnnotations>
-          <div class="consent">
-            <strong>生成忠实梳理的个人笔记</strong>
-            <p v-if="previewPlan"><strong>本次分析：{{ previewPlan.model }} · {{ previewPlan.method }}</strong></p>
-            <p v-else role="alert">{{ settingsError || '正在读取已保存的模型配置…' }}</p>
-            <p>将视频及音轨发送至 {{ endpoint }}，使用设置中已保存的 Key 和模型，可能产生费用。本地视频超过 6 MiB 时使用 ffmpeg 压缩副本（最大 320 像素、每秒 2 帧，音频压缩为单声道，保留完整时长），原片不变。</p><p>结果和编辑保存在本机。首版上限 15 分钟 / 2 GB。</p>
-            <label>原视频公网链接（可选）<input v-model="videoUrl" type="url" :disabled="busy" placeholder="https://…（如 OSS 签名链接）" /></label>
-            <p>填写链接时，阿里云直接读取链接中的原视频，不压缩本地文件。请确保链接指向当前播放的同一视频、包含音轨，且在分析期间有效；时间点仍与本地原视频关联。</p>
-            <label><input v-model="consent" type="checkbox" :disabled="busy" /> 我同意本次上传和分析</label>
-            <button :disabled="busy || loading || !previewPlan || !savedAISettings?.hasKey || !consent || !duration || record?.missing" @click="analyze">{{ report ? '重新分析（新增版本）' : '生成个人笔记' }}</button>
-            <button v-if="busy" :disabled="cancelRequested" @click="cancel">{{ cancelRequested ? '正在取消…' : '取消任务' }}</button>
-          </div>
+          <section class="ai-compose" aria-label="AI 个人笔记">
+            <div class="ai-compose-heading"><strong>AI 个人笔记</strong><span v-if="previewPlan" class="model-name">{{ previewPlan.model }}</span></div>
+            <p class="ai-description">整理视频中的想法、素材与待确认内容。</p>
+            <p v-if="!previewPlan || !savedAISettings?.hasKey" class="setup-hint" role="status">{{ settingsError || '请先在设置中配置模型和 API Key。' }}</p>
+            <details class="ai-options">
+              <summary>使用原视频链接<span v-if="videoUrl.trim()" class="option-state">已填写</span><span v-else class="optional">可选</span></summary>
+              <div class="option-content">
+                <label for="analysis-video-url" class="sr-only">原视频公网链接</label>
+                <input id="analysis-video-url" v-model="videoUrl" type="url" :disabled="busy" placeholder="https://…" />
+                <p>填写与当前视频一致、包含音轨的有效公网链接，模型将直接读取原视频。</p>
+              </div>
+            </details>
+            <details class="ai-options">
+              <summary>处理与费用说明</summary>
+              <div class="option-content">
+                <p>视频及音轨将发送至阿里云百炼，费用计入你的账户。笔记与编辑保存在本机。</p>
+                <p>本地视频较大时会压缩副本，保留完整时长，可能损失画面和声音细节。支持最长 15 分钟、最大 2 GB，原片保持不变。</p>
+                <p v-if="previewPlan">本次方式：{{ previewPlan.method }}</p>
+                <p class="endpoint">服务地址：{{ endpoint }}</p>
+              </div>
+            </details>
+            <div class="ai-compose-footer">
+              <label class="analysis-consent"><input v-model="consent" type="checkbox" :disabled="busy" /><span>同意发送视频及音轨至百炼分析，可能产生费用</span></label>
+              <div class="analysis-actions">
+                <button v-if="busy" class="cancel-analysis" :disabled="cancelRequested" @click="cancel">{{ cancelRequested ? '正在取消…' : '取消' }}</button>
+                <button class="generate-notes" :disabled="busy || loading || !previewPlan || !savedAISettings?.hasKey || !consent || !duration || record?.missing" @click="analyze">{{ busy ? '分析中…' : report ? '重新生成' : '生成笔记' }}</button>
+              </div>
+              <small v-if="report" class="version-hint">重新生成会保留现有笔记，新增一个版本。</small>
+            </div>
+          </section>
           <AnalysisProgress v-if="task" :task="task" />
           <p role="status">{{ status }}</p><p v-if="error" role="alert" class="error">{{ error }}</p>
           <div v-if="recoverable" class="consent"><strong>已有模型响应保存在本机</strong><p>可先重新解析，不上传视频、不发起新的模型调用。若响应本身缺失或截断，仍需重新分析。</p><button :disabled="busy || recovering" @click="recover">{{ recovering ? '正在重新解析…' : '重新解析已有响应' }}</button></div>
@@ -137,6 +156,30 @@ onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.e
 .report-pane > .toolbar:first-child { padding-right: 24px; }
 .workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane, .report-pane { overflow-y: auto; padding: 24px; }.player-pane { background: #f5f7fa; }.player-pane > video { width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
 button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; cursor: pointer; }button:disabled { opacity: .45; cursor: default; }.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }select { max-width: 100%; }.prose { white-space: pre-wrap; line-height: 1.85; }h2 { font-size: 24px; }h3 { margin-top: 30px; }h4 { margin: 10px 0; }article { border-bottom: 1px solid #eef2f7; padding: 14px 0; }.timestamp { background: transparent; color: #25815a; border: 0; padding: 0; font-size: 13px; }.frame { display: block; padding: 0; border: 0; width: min(100%, 320px); }textarea { width: 100%; padding: 12px; line-height: 1.8; border: 1px solid #b9d2c4; border-radius: 6px; font: inherit; }.error { color: #b42318 !important; }.empty, .missing { padding: 32px 0; color: #64748b; line-height: 1.8; }.missing button { display: block; margin-top: 12px; }
+.ai-compose { margin-top: 24px; padding: 18px; background: #fff; border: 1px solid #e2e8e4; border-radius: 10px; }
+.ai-compose-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; }
+.ai-compose-heading strong { font-size: 14px; font-weight: 600; color: #334155; }
+.model-name { font-size: 11px; color: #7b8796; overflow-wrap: anywhere; }
+.ai-compose .ai-description { margin: 6px 0 14px; font-size: 12px; color: #7b8796; }
+.ai-compose .setup-hint { font-size: 12px; margin: 0 0 12px; }
+.ai-options { border-top: 1px solid #eef2ef; }
+.ai-options summary { padding: 10px 0; font-size: 12px; color: #64748b; cursor: pointer; }
+.optional, .option-state { margin-left: 8px; font-size: 11px; color: #94a3b8; }
+.option-state { color: #25815a; }
+.option-content { padding: 0 0 10px; }
+.option-content input { box-sizing: border-box; width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid #d4dfda; border-radius: 6px; background: #fbfcfb; color: #334155; font-size: 12px; }
+.ai-compose .option-content p { margin: 8px 0 0; font-size: 12px; line-height: 1.7; }
+.endpoint { overflow-wrap: anywhere; }
+.ai-compose-footer { padding-top: 14px; border-top: 1px solid #eef2ef; }
+.analysis-consent { display: flex; align-items: flex-start; gap: 8px; color: #64748b; font-size: 12px; line-height: 1.7; cursor: pointer; }
+.analysis-consent input { margin: 4px 0 0; flex-shrink: 0; accent-color: #24583f; }
+.analysis-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.analysis-actions .generate-notes { background: #24583f; border-color: #24583f; color: white; padding: 8px 18px; font-size: 13px; }
+.analysis-actions .generate-notes:hover:not(:disabled) { background: #1c4933; }
+.analysis-actions .cancel-analysis { background: transparent; color: #64748b; font-size: 13px; }
+.ai-compose .version-hint { display: block; margin-top: 8px; text-align: right; font-size: 11px; color: #94a3b8; }
+.ai-compose summary:focus-visible, .ai-compose input:focus-visible, .ai-compose button:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 button.relink-button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 0; background: transparent; color: #7b8796; font-size: 12px; line-height: 18px; }
 button.relink-button:hover:not(:disabled) { color: #24583f; background: #e8eeea; }
 .relink-button:focus-visible, .relink-recovery:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
