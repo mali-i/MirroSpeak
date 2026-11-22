@@ -1,11 +1,6 @@
 <template>
   <div class="app-layout">
     <aside class="sidebar">
-      <div class="brand">
-        <h1>
-          <span>VideoLog</span>
-        </h1>
-      </div>
       <nav class="nav-menu">
         <button 
           :class="['nav-item', { active: currentView === 'record' }]" 
@@ -129,23 +124,6 @@ body {
   padding: 20px;
   flex-shrink: 0;
   border-right: 1px solid #d1d5db;
-}
-
-.brand h1 {
-    margin: 0 0 40px 0;
-    font-size: 1.5rem;
-    color: #2c3e50;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.brand-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
 }
 
 .nav-menu {
@@ -282,10 +260,6 @@ body {
     padding: 10px;
     order: 2;
     justify-content: space-around;
-  }
-
-  .brand {
-    display: none;
   }
 
   .nav-menu {
