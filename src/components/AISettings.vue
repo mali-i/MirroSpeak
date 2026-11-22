@@ -8,8 +8,7 @@
       <option v-if="!selectedProfile" :value="model" disabled>{{ model }}（请重新选择支持的模型）</option>
       <option v-for="option in MODEL_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option>
     </select></label>
-    <p v-if="selectedProfile?.videoAudio" class="hint">直接将带音轨的视频提交给模型，综合理解画面与声音，无需本地 Whisper 转写。</p>
-    <p v-else-if="selectedProfile" role="alert">先使用本地 Whisper 转写原视频音轨，再将带时间点的文字与视频一起发送给模型。首次使用需下载语音模型，不额外调用云端语音识别 API。</p>
+    <p v-if="selectedProfile" class="hint">直接将带音轨的视频提交给模型，综合理解画面与声音。</p>
     <p v-else role="alert">此前保存的模型不在当前支持列表中，请重新选择并保存配置。</p>
     <label>API Key<input v-model="apiKey" :disabled="busy || !ready" type="password" :placeholder="hasKey ? '已安全保存；留空保留当前 Key' : '输入阿里云百炼 API Key'" autocomplete="off" /></label>
     <p class="hint">本地视频超过 6 MiB 时使用 ffmpeg 压缩临时副本，保留完整时长，降低画面清晰度、帧率和音频码率，原片不变。视频页也可填写同一原视频的 HTTPS 公网链接，以保留原始素材质量。</p>

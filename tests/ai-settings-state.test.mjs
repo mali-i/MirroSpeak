@@ -4,8 +4,8 @@ import { savedAISettings, publishAISettings, refreshAISettings } from '../src/ai
 import { createAnalysisPlan } from '../src/ai/progress.mjs';
 
 test('saved model changes update analysis plans and refresh uses persisted settings without retaining keys', async () => {
-  publishAISettings({ model: 'qwen4-max', baseUrl: 'https://example.com', hasKey: true, apiKey: 'secret' });
-  assert(createAnalysisPlan(savedAISettings.value.model).steps.some(step => step.id === 'transcribe'));
+  publishAISettings({ model: 'qwen3.5-omni-plus', baseUrl: 'https://example.com', hasKey: true, apiKey: 'secret' });
+  assert.equal(createAnalysisPlan(savedAISettings.value.model).model, 'qwen3.5-omni-plus');
   const bridge = { ai: async action => {
     assert.equal(action, 'settings');
     return { success: true, data: { model: 'qwen3.8-omni-flash', baseUrl: 'https://saved.example.com', hasKey: true } };

@@ -6,13 +6,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-test('switching to model waiting clears byte percentages, preserving visited stages', () => {
+test('switching to model waiting clears byte percentages and completes the upload step', () => {
   let task = applyProgress(null, { stage: 'upload', status: 'running', percent: 100, current: 50, total: 50 });
   task = applyProgress(task, { stage: 'analyze', message: '模型处理' });
   assert.equal(task.percent, null);
   assert.equal(task.current, null);
   assert.equal(task.total, null);
-  assert.deepEqual(task.visited, ['upload', 'analyze']);
+  assert.deepEqual(task.stepStates, { upload: 'done', analyze: 'active' });
   task = applyProgress(task, { stage: 'cleanup' });
   task = applyProgress(task, { stage: 'complete', status: 'complete', warning: '清理失败', finishedAt: 123 });
   assert.equal(task.warning, '清理失败');
@@ -46,9 +46,8 @@ test('analysis plans omit transcription for native audio/video models and name l
   const native = createAnalysisPlan('qwen3.8-omni-flash', 'https://example.com/video.mp4');
   assert.equal(native.steps.some(step => step.id === 'transcribe'), false);
   assert.equal(native.steps.find(step => step.id === 'upload').label, '提交素材链接');
-  const transcribed = createAnalysisPlan('qwen4-max');
-  assert.equal(transcribed.steps[1].id, 'transcribe');
-  assert.equal(transcribed.steps.find(step => step.id === 'upload').label, '提交素材');
+  assert.equal(createAnalysisPlan('qwen3.8-omni-flash').steps.find(step => step.id === 'upload').label, '提交素材');
+  assert.throws(() => createAnalysisPlan('qwen4-max'), /不在支持列表/);
   assert.equal(native.steps.some(step => step.id === 'cleanup'), false);
 });
 

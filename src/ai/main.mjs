@@ -4,7 +4,6 @@ import { getModelProfile } from './models.mjs';
 import { createAnalysisPlan } from './progress.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import crypto from 'node:crypto';
 import { fingerprint, identify, markdown } from './core.mjs';
 import { parseReportResponse } from './report-response.mjs';
@@ -134,7 +133,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       return await withDirectoryAccess(record.path, async () => {
         const stats = await fs.promises.stat(record.path);
         if (stats.size > 2 * 1024 ** 3) throw new Error('首版支持最大 2 GB 的视频。');
-        const report = await analyze({ apiKey, baseUrl, videoUrl, model, sourceHash: record.hash, transcriptionCacheDir: path.join(app.getPath?.('userData') || os.tmpdir(), 'speech-cache'), filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
+        const report = await analyze({ apiKey, baseUrl, videoUrl, model, filePath: record.path, duration, signal: controller.signal, progress, onInvalidResponse: (response, inputMetadata) => {
           const current = records().find(item => item.id === record.id) || record;
           writeRecord({ ...current, pendingAnalysis: { response, ...inputMetadata, duration, model, baseUrl, sourceHash: record.hash, createdAt: new Date().toISOString() } });
         } });
