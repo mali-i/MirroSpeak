@@ -19,19 +19,20 @@
             </button>
             </template>
           </VideoAnnotations>
-          <section class="ai-compose" aria-label="AI 个人笔记">
-            <div class="ai-compose-heading"><strong>AI 个人笔记</strong><span v-if="previewPlan" class="model-name">{{ previewPlan.model }}</span></div>
-            <p class="ai-description">整理视频中的想法、素材与待确认内容。</p>
+          <section class="ai-compose" aria-label="AI 视频笔记">
+            <div class="ai-compose-heading">
+              <div class="ai-title-group"><strong>AI 视频笔记</strong><span v-if="previewPlan" class="model-name">{{ previewPlan.model }}</span></div>
+              <span class="ai-output-hint">内容梳理 · 素材提炼</span>
+            </div>
             <p v-if="!previewPlan || !savedAISettings?.hasKey" class="setup-hint" role="status">{{ settingsError || '请先在设置中配置模型和 API Key。' }}</p>
-            <details class="ai-options">
-              <summary>使用原视频链接<span v-if="videoUrl.trim()" class="option-state">已填写</span><span v-else class="optional">可选</span></summary>
+            <details class="ai-options advanced-options">
+              <summary>选项与说明<span v-if="videoUrl.trim()" class="option-state">使用视频链接</span></summary>
               <div class="option-content">
-                <label for="analysis-video-url" class="sr-only">原视频公网链接</label>
+                <label for="analysis-video-url" class="url-label">原视频链接 <span class="optional">可选</span></label>
                 <input id="analysis-video-url" v-model="videoUrl" type="url" :disabled="busy" placeholder="https://…" />
                 <p>填写与当前视频一致、包含音轨的有效公网链接，模型将直接读取原视频。</p>
               </div>
-            </details>
-            <details class="ai-options">
+            <details class="ai-options processing-details">
               <summary>处理与费用说明</summary>
               <div class="option-content">
                 <p>视频及音轨将发送至阿里云百炼，费用计入你的账户。笔记与编辑保存在本机。</p>
@@ -39,6 +40,7 @@
                 <p v-if="previewPlan">本次方式：{{ previewPlan.method }}</p>
                 <p class="endpoint">服务地址：{{ endpoint }}</p>
               </div>
+            </details>
             </details>
             <div class="ai-compose-footer">
               <label class="analysis-consent"><input v-model="consent" type="checkbox" :disabled="busy" /><span>同意发送视频及音轨至百炼分析，可能产生费用</span></label>
@@ -156,28 +158,33 @@ onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.e
 .report-pane > .toolbar:first-child { padding-right: 24px; }
 .workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane, .report-pane { overflow-y: auto; padding: 24px; }.player-pane { background: #f5f7fa; }.player-pane > video { width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
 button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; cursor: pointer; }button:disabled { opacity: .45; cursor: default; }.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }select { max-width: 100%; }.prose { white-space: pre-wrap; line-height: 1.85; }h2 { font-size: 24px; }h3 { margin-top: 30px; }h4 { margin: 10px 0; }article { border-bottom: 1px solid #eef2f7; padding: 14px 0; }.timestamp { background: transparent; color: #25815a; border: 0; padding: 0; font-size: 13px; }.frame { display: block; padding: 0; border: 0; width: min(100%, 320px); }textarea { width: 100%; padding: 12px; line-height: 1.8; border: 1px solid #b9d2c4; border-radius: 6px; font: inherit; }.error { color: #b42318 !important; }.empty, .missing { padding: 32px 0; color: #64748b; line-height: 1.8; }.missing button { display: block; margin-top: 12px; }
-.ai-compose { margin-top: 24px; padding: 18px; background: #fff; border: 1px solid #e2e8e4; border-radius: 10px; }
+.ai-compose { margin-top: 24px; padding: 18px 0 0; border-top: 1px solid #dce3df; }
 .ai-compose-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; }
+.ai-title-group { display: flex; flex-direction: column; gap: 5px; }
+.ai-output-hint { color: #94a3b8; font-size: 11px; }
+.url-label { display: block; margin-bottom: 8px; color: #64748b; font-size: 12px; }
 .ai-compose-heading strong { font-size: 14px; font-weight: 600; color: #334155; }
 .model-name { font-size: 11px; color: #7b8796; overflow-wrap: anywhere; }
 .ai-compose .ai-description { margin: 6px 0 14px; font-size: 12px; color: #7b8796; }
 .ai-compose .setup-hint { font-size: 12px; margin: 0 0 12px; }
-.ai-options { border-top: 1px solid #eef2ef; }
+.ai-options { border: 0; }
+.advanced-options { margin-top: 10px; }
+.processing-details { margin-top: 0; }
 .ai-options summary { padding: 10px 0; font-size: 12px; color: #64748b; cursor: pointer; }
 .optional, .option-state { margin-left: 8px; font-size: 11px; color: #94a3b8; }
 .option-state { color: #25815a; }
-.option-content { padding: 0 0 10px; }
+.option-content { padding: 4px 0 10px; }
 .option-content input { box-sizing: border-box; width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid #d4dfda; border-radius: 6px; background: #fbfcfb; color: #334155; font-size: 12px; }
 .ai-compose .option-content p { margin: 8px 0 0; font-size: 12px; line-height: 1.7; }
 .endpoint { overflow-wrap: anywhere; }
-.ai-compose-footer { padding-top: 14px; border-top: 1px solid #eef2ef; }
-.analysis-consent { display: flex; align-items: flex-start; gap: 8px; color: #64748b; font-size: 12px; line-height: 1.7; cursor: pointer; }
+.ai-compose-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 10px; }
+.analysis-consent { flex: 1 1 190px; display: flex; align-items: flex-start; gap: 8px; color: #64748b; font-size: 12px; line-height: 1.7; cursor: pointer; }
 .analysis-consent input { margin: 4px 0 0; flex-shrink: 0; accent-color: #24583f; }
-.analysis-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.analysis-actions { display: flex; flex: 0 0 auto; margin-left: auto; justify-content: flex-end; gap: 8px; }
 .analysis-actions .generate-notes { background: #24583f; border-color: #24583f; color: white; padding: 8px 18px; font-size: 13px; }
 .analysis-actions .generate-notes:hover:not(:disabled) { background: #1c4933; }
 .analysis-actions .cancel-analysis { background: transparent; color: #64748b; font-size: 13px; }
-.ai-compose .version-hint { display: block; margin-top: 8px; text-align: right; font-size: 11px; color: #94a3b8; }
+.ai-compose .version-hint { flex-basis: 100%; display: block; margin-top: 0; text-align: right; font-size: 11px; color: #94a3b8; }
 .ai-compose summary:focus-visible, .ai-compose input:focus-visible, .ai-compose button:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 button.relink-button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 0; background: transparent; color: #7b8796; font-size: 12px; line-height: 18px; }
