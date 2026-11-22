@@ -8,14 +8,14 @@
       <div class="view-switcher" aria-label="Gallery view">
         <button
           type="button"
-          :class="{ active: viewMode === 'cards' }"
-          @click="setViewMode('cards')"
-        >Cards</button>
-        <button
-          type="button"
           :class="{ active: viewMode === 'calendar' }"
           @click="setViewMode('calendar')"
         >Calendar</button>
+        <button
+          type="button"
+          :class="{ active: viewMode === 'cards' }"
+          @click="setViewMode('cards')"
+        >Cards</button>
       </div>
     </div>
     <div v-if="videos.length === 0" class="no-videos">No videos found.</div>
@@ -292,7 +292,7 @@ const deletePendingPath = ref('');
 const isMovingToTrash = ref(false);
 const trashCandidate = ref(null);
 const openMenuPath = ref('');
-const viewMode = ref('cards');
+const viewMode = ref('calendar');
 const selectedDate = ref('');
 const calendarSidebarList = ref(null);
 const weekdays = ['Sun', 'Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon'];
@@ -386,16 +386,11 @@ const loadVideos = async (resetCalendar = false) => {
   }
 };
 
-const setViewMode = async (mode) => {
+const setViewMode = (mode) => {
   if (!['cards', 'calendar'].includes(mode)) return;
   viewMode.value = mode;
   openMenuPath.value = '';
   cancelRename();
-  try {
-    await window.electronAPI.setConfig('galleryViewMode', mode);
-  } catch (error) {
-    console.error('Failed to save gallery view mode:', error);
-  }
 };
 
 const selectCalendarDay = (day) => {
@@ -551,15 +546,7 @@ const handleVideoError = (e) => {
 };
 
 watch(() => props.directory, () => loadVideos(true));
-onMounted(async () => {
-  try {
-    const savedViewMode = await window.electronAPI.getConfig('galleryViewMode');
-    if (['cards', 'calendar'].includes(savedViewMode)) {
-      viewMode.value = savedViewMode;
-    }
-  } catch (error) {
-    console.error('Failed to load gallery view mode:', error);
-  }
+onMounted(() => {
   loadVideos(true);
   document.addEventListener('click', closeVideoMenu);
 });
