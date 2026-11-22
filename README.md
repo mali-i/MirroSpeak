@@ -59,7 +59,7 @@ npm run upload
 
 ## AI 个人笔记（Qwen-Omni BYOK）
 
-使用阿里云百炼模型输出内容概览、章节、观点素材及个人笔记。Omni 模型直接理解音画；Qwen4-Max 等非 Omni 模型先由本地 Whisper base 转写原视频音轨，再将带时间点的文字与视频一并提交，保留所选模型。默认模型 `qwen3.8-omni-flash`，也可选择 Qwen3.5-Omni。采用阿里云文档中的 OpenAI SDK / Chat Completions 协议，流式输出文本；不会自动重试收费请求。
+使用阿里云百炼模型输出内容概览、章节、观点素材及个人笔记。Omni 模型直接理解音画；Qwen4-Max 等非 Omni 模型先由本地 Whisper base 转写原视频音轨，再将带时间点的文字与视频一并提交，保留所选模型。默认模型 `qwen3.8-omni-flash`，设置中通过下拉列表选择模型，不再手填模型 ID；可选 Qwen3.8-Omni-Flash、Qwen4-Max、Qwen3.5-Omni-Plus 和 Qwen3.5-Omni-Flash。模型的音画能力由明确配置决定，不根据名称猜测；旧配置中不在列表的模型需重新选择后保存。采用阿里云文档中的 OpenAI SDK / Chat Completions 协议，流式输出文本；不会自动重试收费请求。
 
 1. 在 Settings → AI 个人笔记填写百炼工作空间的完整 OpenAI 兼容 API Base URL（通常以 `/compatible-mode/v1` 结尾）及同地域的 API Key，保存后测试基础连接。地址从自己的百炼控制台复制；应用不猜测工作空间 ID。
 2. 在 Gallery 打开已录制的视频，同意本次提交后生成笔记。费用计入自己的阿里云账户。

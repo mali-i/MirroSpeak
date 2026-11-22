@@ -1,5 +1,6 @@
 import { app, ipcMain, dialog, safeStorage } from 'electron';
 import Store from 'electron-store';
+import { getModelProfile } from './models.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -55,7 +56,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
   handle('settings', () => publicSettings());
   handle('configure', ({ apiKey, model, baseUrl = DEFAULT_BASE_URL }) => {
     if (active) throw new Error('请等待当前任务结束后再修改配置。');
-    if (typeof model !== 'string' || !model.trim() || model.trim().length > 200 || /[\s\x00-\x1f\x7f]/.test(model.trim())) throw new Error('请输入有效的模型 ID（不超过 200 字符，不能包含空白或控制字符）。');
+    getModelProfile(model);
     if (apiKey !== undefined && typeof apiKey !== 'string') throw new Error('API Key 格式无效。');
     apiKey = apiKey?.trim();
     const normalizedBase = normalizeBaseUrl(baseUrl);

@@ -4,17 +4,20 @@
     <p>使用自己的阿里云百炼 API Key，由阿里云按调用量计费。仅在主动分析时提交视频与音轨，笔记保存在本机。</p>
     <label>API Base URL<input v-model="baseUrl" :disabled="busy || !ready" placeholder="https://你的工作空间ID.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" autocomplete="off" /></label>
     <p class="hint">从百炼控制台复制完整 OpenAI 兼容地址（以 /compatible-mode/v1 结尾），Key、地址和模型必须属于同一地域。更换地址时需重新填写 Key。</p>
-    <label>模型名称<input v-model="model" :disabled="busy || !ready" placeholder="例如 qwen3.8-omni-flash" autocomplete="off" /></label>
-    <p class="hint">填写百炼控制台中的完整模型 ID，所选模型需支持视频画面、音轨输入和文本输出。</p>
-    <p v-if="model.trim().toLowerCase().startsWith('qwen4-max')" role="alert">Qwen4-Max 将先使用本地 Whisper 转写原视频音轨，再结合视频画面整理笔记。首次使用需下载语音模型，不额外调用云端语音识别 API。</p>
-    <p v-else-if="model.trim() && !model.toLowerCase().includes('omni')" class="hint">非 Omni 模型会先使用本地 Whisper 转写音轨，再将转写文字与视频一并提交。</p>
+    <label>模型<select v-model="model" :disabled="busy || !ready">
+      <option v-if="!selectedProfile" :value="model" disabled>{{ model }}（请重新选择支持的模型）</option>
+      <option v-for="option in MODEL_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option>
+    </select></label>
+    <p v-if="selectedProfile?.videoAudio" class="hint">直接将带音轨的视频提交给模型，综合理解画面与声音，无需本地 Whisper 转写。</p>
+    <p v-else-if="selectedProfile" role="alert">先使用本地 Whisper 转写原视频音轨，再将带时间点的文字与视频一起发送给模型。首次使用需下载语音模型，不额外调用云端语音识别 API。</p>
+    <p v-else role="alert">此前保存的模型不在当前支持列表中，请重新选择并保存配置。</p>
     <label>API Key<input v-model="apiKey" :disabled="busy || !ready" type="password" :placeholder="hasKey ? '已安全保存；留空保留当前 Key' : '输入阿里云百炼 API Key'" autocomplete="off" /></label>
     <p class="hint">本地视频超过 6 MiB 时使用 ffmpeg 压缩临时副本，保留完整时长，降低画面清晰度、帧率和音频码率，原片不变。视频页也可填写同一原视频的 HTTPS 公网链接，以保留原始素材质量。</p>
     <p v-if="secureStorage === false">系统安全存储不可用，暂不能保存 Key。</p>
     <p v-if="loading">正在连接 AI 服务并检查安全存储…</p>
     <div class="actions">
       <button v-if="!ready" :disabled="busy" @click="loadSettings">重试连接</button>
-      <button :disabled="busy || !ready || secureStorage !== true" @click="save">保存配置</button>
+      <button :disabled="busy || !ready || !selectedProfile || secureStorage !== true" @click="save">保存配置</button>
       <button :disabled="busy || !ready || !hasKey" @click="test">测试基础连接</button>
       <button :disabled="busy || !ready || !hasKey" @click="forget">删除 Key</button>
     </div>
@@ -24,10 +27,13 @@
   </section>
 </template>
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { invokeAI } from '../ai/client.mjs';
+import { MODEL_OPTIONS } from '../ai/models.mjs';
+import { DEFAULT_MODEL } from '../ai/endpoint.mjs';
 const baseUrl = ref('');
-const model = ref('qwen3.8-omni-flash'), apiKey = ref(''), hasKey = ref(false), secureStorage = ref(null), busy = ref(false), message = ref('');
+const model = ref(DEFAULT_MODEL), apiKey = ref(''), hasKey = ref(false), secureStorage = ref(null), busy = ref(false), message = ref('');
+const selectedProfile = computed(() => MODEL_OPTIONS.find(option => option.id === model.value));
 const ready = ref(false), loading = ref(true);
 async function run(action, data) {
   busy.value = true;

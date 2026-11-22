@@ -32,6 +32,8 @@ test('Qwen SDK submits complete local video with text output and retains usage',
   try {
     const result = await analyze({ apiKey: 'test-key', baseUrl, filePath, duration: 10 });
     assert.equal(result.title, '笔记'); assert.equal(result.usage.total_tokens, 100);
+    assert.equal(result.speechSource, 'video-audio');
+    assert.equal(result.transcriptionModel, null);
     assert.equal(result.inputMode, 'inline'); assert.equal(result.compressed, false);
     assert.equal(calls, 1);
   } finally { globalThis.fetch = original; await fs.rm(dir, { recursive: true, force: true }); }
@@ -86,4 +88,12 @@ test('cancellation is propagated into the SDK transport', async () => {
   globalThis.fetch = async (_url, init) => { init.signal.throwIfAborted(); assert.fail('must abort'); };
   try { await assert.rejects(analyze({ apiKey: 'key', baseUrl, videoUrl: 'https://bucket.example/video.mp4', duration: 10, signal: controller.signal })); }
   finally { globalThis.fetch = original; }
+});
+
+test('unknown models are rejected before any network or media processing', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => assert.fail('unsupported models must not send requests');
+  try {
+    await assert.rejects(analyze({ apiKey: 'key', baseUrl, model: 'unknown-omni', filePath: '/missing.mp4', duration: 10 }), /不在支持列表/);
+  } finally { globalThis.fetch = original; }
 });

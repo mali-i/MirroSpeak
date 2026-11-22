@@ -40,6 +40,8 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal((await invoke('configure', { apiKey: 'private-key', model: 'qwen3.8-omni-flash', baseUrl: 'https://workspace.example/compatible-mode/v1' })).success, true);
     assert.equal(JSON.stringify((await invoke('settings')).data).includes('private-key'), false);
     assert.equal(globalThis.__aiTest.values.encryptedKey.includes('private-key'), false);
+    assert.equal((await invoke('configure', { model: 'unknown-omni', baseUrl: 'https://workspace.example/compatible-mode/v1' })).success, false);
+    assert.equal((await invoke('settings')).data.model, 'qwen3.8-omni-flash');
     const filePath = path.join(dir, 'original.mp4');
     await fs.writeFile(filePath, 'video');
     const original = (await invoke('open', { filePath })).data;

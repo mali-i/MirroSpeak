@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getModelProfile } from './models.mjs';
 import { transcribeLocal } from './transcription.mjs';
 import OpenAI from 'openai';
 import { parseReportResponse } from './report-response.mjs';
@@ -69,10 +70,11 @@ function sdkError(error, signal) {
 }
 
 export async function analyze({ apiKey, baseUrl = DEFAULT_BASE_URL, model = DEFAULT_MODEL, filePath, videoUrl, duration, signal, progress = () => {}, onInvalidResponse, transcriptionCacheDir, sourceHash }) {
+  const profile = getModelProfile(model);
   const ai = createQwenClient(apiKey, baseUrl, { signal, progress });
   let prepared;
   try {
-    const speech = /omni/i.test(model) ? null : await transcribeLocal({ filePath, duration, signal, progress, cacheDir: transcriptionCacheDir, sourceHash, fetchModel: fetchTransport });
+    const speech = profile.videoAudio ? null : await transcribeLocal({ filePath, duration, signal, progress, cacheDir: transcriptionCacheDir, sourceHash, fetchModel: fetchTransport });
     let url;
     if (videoUrl?.trim()) {
       url = normalizeVideoUrl(videoUrl);
@@ -95,7 +97,7 @@ ${speech.text}
     const stream = await ai.chat.completions.create({
       model, messages: [{ role: 'user', content: [{ type: 'video_url', video_url: { url } }, { type: 'text', text: prompt }] }],
       modalities: ['text'], stream: true, stream_options: { include_usage: true },
-      ...(model.startsWith('qwen3.8-omni') ? { reasoning_effort: 'none', response_format: { type: 'json_object' } } : {}),
+      ...(profile.jsonOutput ? { reasoning_effort: 'none', response_format: { type: 'json_object' } } : {}),
     }, { signal });
     const response = await collectGeneration(stream, { signal, progress });
     progress({ stage: 'analyze', message: '模型已返回，正在校验笔记内容和时间点…' });
