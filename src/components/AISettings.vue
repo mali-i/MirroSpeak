@@ -21,7 +21,7 @@
       <button :disabled="busy || !ready || !hasKey" @click="test">测试基础连接</button>
       <button :disabled="busy || !ready || !hasKey" @click="forget">删除 Key</button>
     </div>
-    <p class="hint">基础连接测试仅验证 Key 与模型目录，不生成内容、不发送视频。请先保存配置，再测试连接。</p>
+    <p class="hint">修改模型后需点击“保存配置”，视频分析使用已保存的模型。基础连接测试仅验证 Key 与模型目录，不生成内容、不发送视频。请先保存配置，再测试连接。</p>
     <p role="status">{{ message }}</p>
     <p class="hint">视频上限 15 分钟 / 2 GB。本地临时副本在任务结束后删除；公网链接的文件由你在对象存储中管理。</p>
   </section>
@@ -30,6 +30,7 @@
 import { computed, ref, onMounted } from 'vue';
 import { invokeAI } from '../ai/client.mjs';
 import { MODEL_OPTIONS } from '../ai/models.mjs';
+import { publishAISettings } from '../ai/settings-state.mjs';
 import { DEFAULT_MODEL } from '../ai/endpoint.mjs';
 const baseUrl = ref('');
 const model = ref(DEFAULT_MODEL), apiKey = ref(''), hasKey = ref(false), secureStorage = ref(null), busy = ref(false), message = ref('');
@@ -40,9 +41,9 @@ async function run(action, data) {
   try { return await invokeAI(window.electronAPI, action, data); }
   finally { busy.value = false; }
 }
-async function save() { try { const settings = await run('configure', { baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value }); baseUrl.value = settings.baseUrl; hasKey.value = settings.hasKey; apiKey.value = ''; message.value = '配置已保存。'; } catch (e) { message.value = e.message; } }
+async function save() { try { const settings = await run('configure', { baseUrl: baseUrl.value, model: model.value, apiKey: apiKey.value }); publishAISettings(settings); model.value = settings.model; baseUrl.value = settings.baseUrl; hasKey.value = settings.hasKey; apiKey.value = ''; message.value = '配置已保存。'; } catch (e) { message.value = e.message; } }
 async function test() { try { message.value = '正在验证 Key 和模型查询，不发送视频…'; message.value = (await run('test')).message; } catch (e) { message.value = e.message; } }
-async function forget() { try { await run('forget-key'); hasKey.value = false; message.value = 'Key 已删除，本地报告保留。'; } catch (e) { message.value = e.message; } }
+async function forget() { try { await run('forget-key'); hasKey.value = false; publishAISettings(await run('settings')); message.value = 'Key 已删除，本地报告保留。'; } catch (e) { message.value = e.message; } }
 async function loadSettings() {
   loading.value = true;
   ready.value = false;
@@ -50,6 +51,7 @@ async function loadSettings() {
   message.value = '';
   try {
     const settings = await run('settings');
+    publishAISettings(settings);
     baseUrl.value = settings.baseUrl;
     model.value = settings.model;
     hasKey.value = settings.hasKey;
