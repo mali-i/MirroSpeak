@@ -137,3 +137,5 @@ signing/
 
 icon_generate
 icon_generate/*
+# Local signing profile
+/profile.xml
