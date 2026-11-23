@@ -15,7 +15,7 @@ async function ffmpegPath() {
 }
 export async function compressForInline({ filePath, duration, signal, progress }) {
   const binary = await ffmpegPath();
-  if (!Number.isFinite(duration) || duration <= 0 || duration > 900) throw new Error('内联视频支持最长 15 分钟。');
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error('视频时长无效，无法压缩视频。');
   const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'videolog-inline-'));
   const output = path.join(directory, 'analysis.mp4');
   const cleanup = () => fs.promises.rm(directory, { recursive: true, force: true });

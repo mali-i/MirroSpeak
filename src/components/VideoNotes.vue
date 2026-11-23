@@ -39,7 +39,7 @@
               <summary>处理与费用说明</summary>
               <div class="option-content">
                 <p>视频及音轨将发送至阿里云百炼，费用计入你的账户。笔记与编辑保存在本机。</p>
-                <p>本地视频较大时会压缩副本，保留完整时长，可能损失画面和声音细节。支持最长 15 分钟、最大 2 GB，原片保持不变。</p>
+                <p>本地视频较大时会压缩副本，保留完整时长，可能损失画面和声音细节。本地原视频最大 2 GB，时长受所选模型限制，原片保持不变。</p>
                 <p v-if="previewPlan">本次方式：{{ previewPlan.method }}</p>
                 <p class="endpoint">服务地址：{{ endpoint }}</p>
               </div>

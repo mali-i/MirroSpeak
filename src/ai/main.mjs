@@ -113,7 +113,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
   handle('cancel', () => { active?.abort(); });
   handle('analyze', async ({ filePath, duration, videoUrl }, event) => {
     if (active) throw new Error('已有视频正在分析，请等待或取消。');
-    if (!Number.isFinite(duration) || duration <= 0 || duration > 900) throw new Error('首版支持最长 15 分钟的视频，请等待播放器加载时长。');
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error('视频时长无效，请等待播放器加载时长。');
     const apiKey = key();
     const baseUrl = configuredBaseUrl();
     const model = database.get('model', DEFAULT_MODEL);

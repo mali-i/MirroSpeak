@@ -119,6 +119,8 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert.equal((await invoke('annotation-delete', { id: original.id, annotationId: annotation.id })).data.length, 0);
     await fs.writeFile(relocated, 'changed');
     assert.equal((await invoke('open', { id: original.id })).data.missing, true);
-    assert.equal((await invoke('analyze', { filePath: relocated, duration: 901 })).success, false);
+    const longerVideo = await invoke('analyze', { filePath: relocated, duration: 901 });
+    assert.equal(longerVideo.success, true, longerVideo.error);
+    assert.equal((await invoke('analyze', { filePath: relocated, duration: 0 })).success, false);
   } finally { globalThis.fetch = oldFetch; delete globalThis.__aiTest; await fs.rm(dir, { recursive: true, force: true }); }
 });
