@@ -83,46 +83,48 @@
                 <button @click="exportNotes">导出 Markdown</button>
               </div>
             </div>
-            <p v-if="reading.error" class="reading-error" role="alert">{{ reading.error }}</p>
-            <div class="report-intro">
-              <h2>{{ report.title }}</h2>
-              <p class="report-summary prose">{{ report.summary }}</p>
-              <div class="report-meta"><span>{{ report.model }}</span><span>{{ report.inputMode === 'inline' ? (report.compressed ? '压缩视频' : '本地原视频') : report.inputMode === 'url' ? '原视频链接' : '视频分析' }}</span></div>
-              <p class="source-hint">时间引用可跳转回看，模型生成的时间点请核实。</p>
+            <div class="report-content">
+              <p v-if="reading.error" class="reading-error" role="alert">{{ reading.error }}</p>
+              <div class="report-intro">
+                <h2>{{ report.title }}</h2>
+                <p class="report-summary prose">{{ report.summary }}</p>
+                <div class="report-meta"><span>{{ report.model }}</span><span>{{ report.inputMode === 'inline' ? (report.compressed ? '压缩视频' : '本地原视频') : report.inputMode === 'url' ? '原视频链接' : '视频分析' }}</span></div>
+                <p class="source-hint">时间引用可跳转回看，模型生成的时间点请核实。</p>
+              </div>
+              <nav class="report-navigation" aria-label="笔记内容导航">
+                <button @click="openSection('report-topics')">主题笔记 <span>{{ report.notes.length }}</span></button>
+                <button @click="openSection('report-materials')">可复用素材 <span>{{ report.materials.length }}</span></button>
+                <button @click="openSection('report-uncertainties')">待厘清内容 <span>{{ report.uncertainties.length }}</span></button>
+              </nav>
+              <section id="report-topics" class="report-section">
+                <h3>主题笔记</h3>
+                <nav class="topic-index" aria-label="主题导航"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)"><span>{{ String(index + 1).padStart(2, '0') }}</span>{{ item.title }}</button></nav>
+                <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`" :class="['topic-entry', { 'reading-current': readingActive && reading.topic === index }]">
+                  <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4><button class="read-topic" :disabled="!savedAISettings?.hasKey" :aria-label="`朗读主题：${item.title}`" :title="`朗读主题：${item.title}`" @click="startReading(index)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button></div>
+                  <p class="takeaway">{{ item.takeaway }}</p>
+                  <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
+                  <p class="prose">{{ item.text }}</p>
+                  <details v-if="index < 6 && (!record.missing || report.frames?.[index])" class="source-frame">
+                    <summary>查看原视频画面</summary>
+                    <button class="frame" :disabled="record.missing" @click="seek(item.sources[0].startMs)"><VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.sources[0].startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" /></button>
+                  </details>
+                </article>
+              </section>
+              <section id="report-materials" class="report-section">
+                <h3>可复用素材 <span>{{ report.materials.length }}</span></h3>
+                <p v-if="!report.materials.length" class="section-empty">暂无可独立复用的素材。</p>
+                <article v-for="(item, index) in report.materials" :key="index">
+                  <div class="entry-heading"><span class="material-type">{{ item.type }}</span><h4>{{ item.title }}</h4></div>
+                  <p class="prose">{{ item.text }}</p>
+                  <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
+                </article>
+              </section>
+              <section id="report-uncertainties" class="report-section">
+                <h3>待厘清内容 <span>{{ report.uncertainties.length }}</span></h3>
+                <p v-if="!report.uncertainties.length" class="section-empty">暂无标出的疑问，仍可结合原视频回顾。</p>
+                <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
+              </section>
             </div>
-            <nav class="report-navigation" aria-label="笔记内容导航">
-              <button @click="openSection('report-topics')">主题笔记 <span>{{ report.notes.length }}</span></button>
-              <button @click="openSection('report-materials')">可复用素材 <span>{{ report.materials.length }}</span></button>
-              <button @click="openSection('report-uncertainties')">待厘清内容 <span>{{ report.uncertainties.length }}</span></button>
-            </nav>
-            <section id="report-topics" class="report-section">
-              <h3>主题笔记</h3>
-              <nav class="topic-index" aria-label="主题导航"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)"><span>{{ String(index + 1).padStart(2, '0') }}</span>{{ item.title }}</button></nav>
-              <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`" :class="['topic-entry', { 'reading-current': readingActive && reading.topic === index }]">
-                <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4><button class="read-topic" :disabled="!savedAISettings?.hasKey" :aria-label="`朗读主题：${item.title}`" :title="`朗读主题：${item.title}`" @click="startReading(index)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button></div>
-                <p class="takeaway">{{ item.takeaway }}</p>
-                <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
-                <p class="prose">{{ item.text }}</p>
-                <details v-if="index < 6 && (!record.missing || report.frames?.[index])" class="source-frame">
-                  <summary>查看原视频画面</summary>
-                  <button class="frame" :disabled="record.missing" @click="seek(item.sources[0].startMs)"><VideoFrame :key="`${report.id}-${index}-${source}`" :src="source" :seconds="item.sources[0].startMs / 1000" :saved="report.frames?.[index]" @capture="saveFrame(index, $event)" /></button>
-                </details>
-              </article>
-            </section>
-            <section id="report-materials" class="report-section">
-              <h3>可复用素材 <span>{{ report.materials.length }}</span></h3>
-              <p v-if="!report.materials.length" class="section-empty">暂无可独立复用的素材。</p>
-              <article v-for="(item, index) in report.materials" :key="index">
-                <div class="entry-heading"><span class="material-type">{{ item.type }}</span><h4>{{ item.title }}</h4></div>
-                <p class="prose">{{ item.text }}</p>
-                <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
-              </article>
-            </section>
-            <section id="report-uncertainties" class="report-section">
-              <h3>待厘清内容 <span>{{ report.uncertainties.length }}</span></h3>
-              <p v-if="!report.uncertainties.length" class="section-empty">暂无标出的疑问，仍可结合原视频回顾。</p>
-              <article v-for="(item, index) in report.uncertainties" :key="index"><h4>{{ item.title }}</h4><p class="prose">{{ item.text }}</p><div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div></article>
-            </section>
           </template>
           <div v-else-if="!loading" class="report-empty"><span class="empty-caption">视频笔记</span><h2>把表达整理成可回顾的内容</h2><p>在左侧生成笔记后，这里会呈现主题梳理、可复用素材，以及需要进一步厘清的内容。</p></div>
         </div>
@@ -221,12 +223,12 @@ button.read-topic:hover:not(:disabled) { color: #24583f; background: #e8eeea; }
 
 .notes-overlay { position: fixed; inset: 0; background: #0f172acc; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .notes-dialog { position: relative; background: #fff; border-radius: 14px; width: 1280px; max-width: 100%; height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 90px #0005; }
-.video-title { margin-bottom: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; line-height: 20px; color: #64748b; } .notes-dialog > .close-button { position: absolute; top: 12px; right: 12px; z-index: 5; flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: #64748b; font-size: 22px; line-height: 1; border-radius: 5px; } .notes-dialog > .close-button:hover { background: #f1f5f9; color: #334155; } .notes-dialog > .close-button:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
-.report-pane > .toolbar:first-child { padding-right: 24px; }
-.workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane, .report-pane { overflow-y: auto; padding: 24px; }.player-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: #f5f7fa; }.player-stage { flex: 0 0 auto; }.player-stage > video { display: block; width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-details { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
+.video-title { margin-bottom: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; line-height: 28px; color: #64748b; } .notes-dialog > .close-button { position: absolute; top: 12px; right: 12px; z-index: 5; flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: #64748b; font-size: 22px; line-height: 1; border-radius: 5px; } .notes-dialog > .close-button:hover { background: #f1f5f9; color: #334155; } .notes-dialog > .close-button:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }
+.workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane { padding: 12px 24px 24px; }.player-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: #f5f7fa; }.player-stage { flex: 0 0 auto; }.player-stage > video { display: block; width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-details { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
 button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; cursor: pointer; }button:disabled { opacity: .45; cursor: default; }.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }select { max-width: 100%; }.prose { white-space: pre-wrap; line-height: 1.85; }h2 { font-size: 24px; }h3 { margin-top: 30px; }h4 { margin: 10px 0; }article { border-bottom: 1px solid #eef2f7; padding: 14px 0; }.timestamp { background: transparent; color: #25815a; border: 0; padding: 0; font-size: 13px; }.frame { display: block; padding: 0; border: 0; width: min(100%, 320px); }textarea { width: 100%; padding: 12px; line-height: 1.8; border: 1px solid #b9d2c4; border-radius: 6px; font: inherit; }.error { color: #b42318 !important; }.empty, .missing { padding: 32px 0; color: #64748b; line-height: 1.8; }.missing button { display: block; margin-top: 12px; }
-.report-pane { min-width: 0; padding-top: 12px; border-left: 1px solid #edf0ee; scrollbar-width: thin; }
-.report-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-right: 22px; padding-bottom: 8px; border-bottom: 1px solid #edf0ee; }
+.report-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid #edf0ee; background: #fff; }
+.report-content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 24px 24px; }
+.report-tools { flex-shrink: 0; background: #fff; display: flex; min-height: 28px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 46px 8px 24px; border-bottom: 1px solid #edf0ee; }
 .version-control { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font-size: 11px; color: #94a3b8; }
 .report-tools select { min-width: 0; max-width: 230px; padding: 5px 6px; background: transparent; border-color: transparent; color: #64748b; font-size: 11px; }
 .report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; }
@@ -260,11 +262,11 @@ button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6p
 .source-frame summary { cursor: pointer; color: #94a3b8; font-size: 11px; }
 .source-frame .frame { margin-top: 10px; }
 .section-empty { color: #94a3b8; font-size: 12px; line-height: 1.8; }
-.report-empty { padding: 48px 12px; max-width: 400px; }
+.report-empty { min-height: 0; overflow-y: auto; padding: 48px 24px; max-width: 400px; }
 .empty-caption { color: #94a3b8; font-size: 12px; }
 .report-empty h2 { color: #475569; font-size: 20px; font-weight: 500; line-height: 1.6; margin: 14px 0; }
 .report-empty p { font-size: 13px; color: #94a3b8; line-height: 1.9; }
-.report-loading { font-size: 13px; color: #94a3b8; padding-right: 24px; }
+.report-loading { flex-shrink: 0; margin: 12px 24px; font-size: 13px; color: #94a3b8; padding-right: 24px; }
 .report-pane button:focus-visible, .report-pane select:focus-visible, .report-pane summary:focus-visible { outline: 2px solid #25815a; outline-offset: 3px; }
 .ai-compose { position: relative; margin-top: 6px; padding: 10px 0 4px; border-top: 1px solid #dfe5e1; }
 .ai-compose-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; }
@@ -302,6 +304,14 @@ button.relink-button:hover:not(:disabled) { color: #24583f; background: #e8eeea;
 .video-missing strong { color: #475569; font-size: 14px; font-weight: 500; }
 .video-missing p { margin: 8px 0 16px; }
 .video-missing .relink-recovery { display: inline-flex; margin: 0; font-size: 13px; }
-@media(max-width: 800px) { .video-title { padding-right: 28px; } .notes-overlay { padding: 8px; }.report-pane > .toolbar:first-child { padding-right: 24px; }
-.workspace { display: block; overflow-y: auto; }.player-pane, .report-pane { overflow: visible; padding: 16px; }.report-pane { padding-top: 12px; }.player-details { overflow: visible; flex: none; } }
+@media(max-width: 800px) {
+  .video-title { padding-right: 28px; }
+  .notes-overlay { padding: 8px; }
+  .workspace { display: flex; flex-direction: column; overflow: hidden; }
+  .player-pane { flex: 0 1 auto; max-height: 45%; padding: 12px 16px 16px; }
+  .player-stage > video { max-height: 26vh; }
+  .report-pane { flex: 1; border-left: 0; border-top: 1px solid #edf0ee; }
+  .report-tools { padding-left: 16px; padding-right: 44px; }
+  .report-content { padding: 0 16px 16px; }
+}
 </style>
