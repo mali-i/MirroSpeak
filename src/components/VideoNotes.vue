@@ -66,20 +66,24 @@
               <label class="version-control"><span>版本</span><select aria-label="笔记版本" :value="version" :disabled="busy" @change="version = $event.target.value">
                 <option v-for="(item, index) in record.reports.filter(item => item.schemaVersion === 2)" :key="item.id" :value="item.id">{{ index + 1 }} · {{ new Date(item.createdAt).toLocaleString() }}{{ item.editedAt ? ' · 已编辑' : '' }}</option>
               </select></label>
-              <div class="report-actions"><button @click="exportNotes">导出 Markdown</button></div>
-            </div>
-            <div class="reading-toolbar" aria-label="笔记朗读">
-              <div class="reading-controls">
-                <button :disabled="!readingConsent || !savedAISettings?.hasKey || readingActive" @click="startReading()">朗读全文</button>
-                <button v-if="readingActive && reading.state !== 'paused'" @click="reader.pause()">暂停</button>
-                <button v-if="reading.state === 'paused'" @click="reader.resume()">继续</button>
-                <button v-if="readingActive" @click="reader.stop()">停止</button>
-                <label>语速 <select aria-label="朗读语速" v-model.number="readingRate" @change="reader.setRate(readingRate)"><option :value="0.75">0.75×</option><option :value="1">1×</option><option :value="1.25">1.25×</option><option :value="1.5">1.5×</option><option :value="2">2×</option></select></label>
-                <span role="status">{{ readingStatus }}</span>
+              <div class="report-actions">
+                <div class="reading-controls" role="group" aria-label="笔记朗读">
+                  <button v-if="!readingActive" class="read-full" :disabled="!savedAISettings?.hasKey" title="朗读概览和主题笔记" @click="startReading()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg>
+                    朗读全文
+                  </button>
+                  <template v-else>
+                    <span class="reading-status" role="status">{{ readingStatus }}</span>
+                    <button v-if="reading.state !== 'paused'" @click="reader.pause()">暂停朗读</button>
+                    <button v-else @click="reader.resume()">继续朗读</button>
+                    <button @click="reader.stop()">停止</button>
+                    <select aria-label="朗读语速" title="朗读语速" v-model.number="readingRate" @change="reader.setRate(readingRate)"><option :value="0.75">0.75×</option><option :value="1">1×</option><option :value="1.25">1.25×</option><option :value="1.5">1.5×</option><option :value="2">2×</option></select>
+                  </template>
+                </div>
+                <button @click="exportNotes">导出 Markdown</button>
               </div>
-              <label class="reading-consent"><input type="checkbox" v-model="readingConsent" @change="!readingConsent && reader.stop()" />同意点击朗读时将文字发送至百炼合成语音，费用计入我的账户；音频缓存在本机。</label>
-              <p v-if="reading.error" class="reading-error" role="alert">{{ reading.error }}</p>
             </div>
+            <p v-if="reading.error" class="reading-error" role="alert">{{ reading.error }}</p>
             <div class="report-intro">
               <h2>{{ report.title }}</h2>
               <p class="report-summary prose">{{ report.summary }}</p>
@@ -95,7 +99,7 @@
               <h3>主题笔记</h3>
               <nav class="topic-index" aria-label="主题导航"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)"><span>{{ String(index + 1).padStart(2, '0') }}</span>{{ item.title }}</button></nav>
               <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`" :class="['topic-entry', { 'reading-current': readingActive && reading.topic === index }]">
-                <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4><button class="read-topic" :disabled="!readingConsent || !savedAISettings?.hasKey" :aria-label="`朗读主题：${item.title}`" @click="startReading(index)">朗读</button></div>
+                <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4><button class="read-topic" :disabled="!savedAISettings?.hasKey" :aria-label="`朗读主题：${item.title}`" :title="`朗读主题：${item.title}`" @click="startReading(index)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg></button></div>
                 <p class="takeaway">{{ item.takeaway }}</p>
                 <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
                 <p class="prose">{{ item.text }}</p>
@@ -155,12 +159,12 @@ const previewPlan = computed(() => {
 const videoUrl = ref('');
 let mounted = true;
 const report = computed(() => record.value?.reports.find(item => item.id === version.value));
-const readingConsent = ref(false), readingRate = ref(1);
+const readingRate = ref(1);
 const reading = ref({ state: 'idle', topic: null, position: 0, total: 0, error: '' });
 const readingActive = computed(() => ['loading', 'playing', 'paused'].includes(reading.value.state));
 const readingStatus = computed(() => {
   const labels = { loading: '正在准备语音', playing: '正在朗读', paused: '已暂停' };
-  return labels[reading.value.state] ? `${labels[reading.value.state]} · ${reading.value.position}/${reading.value.total}` : '';
+  return labels[reading.value.state] || '';
 });
 const reader = createReadingPlayer({
   request: data => call('tts', data), cancel: requestId => call('tts-cancel', { requestId }),
@@ -170,7 +174,7 @@ const reader = createReadingPlayer({
   update: value => { reading.value = { ...reading.value, error: '', ...value }; },
 });
 function startReading(topic = null) {
-  if (!readingConsent.value || !report.value) return;
+  if (!report.value) return;
   player.value?.pause();
   reader.start(readingChunks(report.value, topic), { id: record.value.id, reportId: version.value, topic });
 }
@@ -207,14 +211,12 @@ onMounted(async () => { try { try { await refreshAISettings(window.electronAPI);
 onBeforeUnmount(() => { mounted = false; reader.stop(); unsubscribe(); if (busy.value) window.electronAPI.ai('cancel'); });
 </script>
 <style scoped>
-.reading-toolbar { margin: 12px 0 20px; padding: 12px; background: #f3f7f4; border: 1px solid #dbe7de; border-radius: 8px; }
-.reading-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.reading-controls label { display: flex; gap: 6px; align-items: center; font-size: 12px; }
-.reading-controls span { color: #53705c; font-size: 12px; }
-.reading-consent { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: #64748b; margin-top: 10px; line-height: 1.6; }
-.reading-consent input { margin-top: 3px; }
-.reading-error { color: #b91c1c; font-size: 12px; margin: 8px 0 0; }
-.read-topic { margin-left: auto; flex-shrink: 0; font-size: 12px; }
+.reading-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding-right: 8px; margin-right: 4px; border-right: 1px solid #e2e8e4; }
+.report-actions .read-full { display: inline-flex; align-items: center; gap: 6px; color: #24583f; }
+.reading-status { margin-right: 6px; color: #53705c; font-size: 11px; line-height: 1.6; white-space: nowrap; }
+.reading-error { color: #b91c1c; font-size: 12px; margin: 10px 0 0; line-height: 1.6; }
+button.read-topic { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: #7b8796; border-radius: 5px; }
+button.read-topic:hover:not(:disabled) { color: #24583f; background: #e8eeea; }
 .reading-current { background: #f0f7f2; outline: 2px solid #b9d7c2; outline-offset: 5px; border-radius: 4px; }
 
 .notes-overlay { position: fixed; inset: 0; background: #0f172acc; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -227,7 +229,7 @@ button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6p
 .report-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-right: 22px; padding-bottom: 16px; border-bottom: 1px solid #edf0ee; }
 .version-control { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font-size: 11px; color: #94a3b8; }
 .report-tools select { min-width: 0; max-width: 230px; padding: 5px 6px; background: transparent; border-color: transparent; color: #64748b; font-size: 11px; }
-.report-actions { display: flex; gap: 4px; margin-left: auto; }
+.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; }
 .report-actions button { padding: 5px 7px; border: 0; background: transparent; font-size: 12px; color: #64748b; }
 .report-actions button:hover:not(:disabled) { background: #f1f5f3; color: #24583f; }
 .report-intro { padding: 24px 0 20px; }
