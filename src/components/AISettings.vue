@@ -1,7 +1,7 @@
 <template>
   <section class="settings-section ai-settings">
     <h3>AI 个人笔记 · Qwen-Omni BYOK</h3>
-    <p>使用自己的阿里云百炼 API Key，由阿里云按调用量计费。仅在主动分析时提交视频与音轨，笔记保存在本机。</p>
+    <p>使用自己的阿里云百炼 API Key，由阿里云按调用量计费。仅在主动分析时提交视频与音轨，笔记保存在本机。朗读使用 qwen-audio-3.1-tts-flash，复用此工作空间与 Key；首次朗读会提交文字并单独计费，请确认所在地域已开通该模型。</p>
     <label>API Base URL<input v-model="baseUrl" :disabled="busy || !ready" placeholder="https://你的工作空间ID.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" autocomplete="off" /></label>
     <p class="hint">从百炼控制台复制完整 OpenAI 兼容地址（以 /compatible-mode/v1 结尾），Key、地址和模型必须属于同一地域。更换地址时需重新填写 Key。</p>
     <label>模型<select v-model="model" :disabled="busy || !ready">

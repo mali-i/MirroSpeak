@@ -6,7 +6,7 @@
         <div class="player-pane">
           <div class="player-stage">
           <div class="video-title" :title="record?.name || video.name">{{ record?.name || video.name || '个人笔记' }}</div>
-          <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @timeupdate="playbackUpdate" @seeking="annotationsPanel?.resetPlayback()" @seeked="playbackUpdate" @play="playbackUpdate" @loadedmetadata="loaded" @error="mediaError" />
+          <video v-if="source && !record?.missing" :key="source" ref="player" :src="source" controls autoplay playsinline @timeupdate="playbackUpdate" @seeking="annotationsPanel?.resetPlayback()" @seeked="playbackUpdate" @play="videoStarted" @loadedmetadata="loaded" @error="mediaError" />
           <div v-else-if="record?.missing" class="missing video-missing">
             <strong>原视频未找到</strong>
             <p>已有笔记和批注仍可查看，选择原文件即可恢复播放。</p>
@@ -68,6 +68,18 @@
               </select></label>
               <div class="report-actions"><button @click="exportNotes">导出 Markdown</button></div>
             </div>
+            <div class="reading-toolbar" aria-label="笔记朗读">
+              <div class="reading-controls">
+                <button :disabled="!readingConsent || !savedAISettings?.hasKey || readingActive" @click="startReading()">朗读全文</button>
+                <button v-if="readingActive && reading.state !== 'paused'" @click="reader.pause()">暂停</button>
+                <button v-if="reading.state === 'paused'" @click="reader.resume()">继续</button>
+                <button v-if="readingActive" @click="reader.stop()">停止</button>
+                <label>语速 <select aria-label="朗读语速" v-model.number="readingRate" @change="reader.setRate(readingRate)"><option :value="0.75">0.75×</option><option :value="1">1×</option><option :value="1.25">1.25×</option><option :value="1.5">1.5×</option><option :value="2">2×</option></select></label>
+                <span role="status">{{ readingStatus }}</span>
+              </div>
+              <label class="reading-consent"><input type="checkbox" v-model="readingConsent" @change="!readingConsent && reader.stop()" />同意点击朗读时将文字发送至百炼合成语音，费用计入我的账户；音频缓存在本机。</label>
+              <p v-if="reading.error" class="reading-error" role="alert">{{ reading.error }}</p>
+            </div>
             <div class="report-intro">
               <h2>{{ report.title }}</h2>
               <p class="report-summary prose">{{ report.summary }}</p>
@@ -82,8 +94,8 @@
             <section id="report-topics" class="report-section">
               <h3>主题笔记</h3>
               <nav class="topic-index" aria-label="主题导航"><button v-for="(item, index) in report.notes" :key="index" @click="openTopic(index)"><span>{{ String(index + 1).padStart(2, '0') }}</span>{{ item.title }}</button></nav>
-              <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`" class="topic-entry">
-                <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4></div>
+              <article v-for="(item, index) in report.notes" :key="index" :id="`topic-${index}`" :class="['topic-entry', { 'reading-current': readingActive && reading.topic === index }]">
+                <div class="entry-heading"><span class="entry-number">{{ String(index + 1).padStart(2, '0') }}</span><h4>{{ item.title }}</h4><button class="read-topic" :disabled="!readingConsent || !savedAISettings?.hasKey" :aria-label="`朗读主题：${item.title}`" @click="startReading(index)">朗读</button></div>
                 <p class="takeaway">{{ item.takeaway }}</p>
                 <div class="source-ranges"><span class="source-label">回看</span><button v-for="(range, n) in item.sources" :key="n" class="timestamp" :disabled="record.missing" @click="seek(range.startMs)">{{ time(range.startMs) }}–{{ time(range.endMs) }}</button></div>
                 <p class="prose">{{ item.text }}</p>
@@ -115,7 +127,9 @@
   </div>
 </template>
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { readingChunks } from '../tts/text.mjs';
+import { createReadingPlayer } from '../tts/playback.mjs';
 import VideoFrame from './VideoFrame.vue';
 import VideoAnnotations from './VideoAnnotations.vue';
 const currentTime = ref(0), annotationsPanel = ref(null);
@@ -141,6 +155,27 @@ const previewPlan = computed(() => {
 const videoUrl = ref('');
 let mounted = true;
 const report = computed(() => record.value?.reports.find(item => item.id === version.value));
+const readingConsent = ref(false), readingRate = ref(1);
+const reading = ref({ state: 'idle', topic: null, position: 0, total: 0, error: '' });
+const readingActive = computed(() => ['loading', 'playing', 'paused'].includes(reading.value.state));
+const readingStatus = computed(() => {
+  const labels = { loading: '正在准备语音', playing: '正在朗读', paused: '已暂停' };
+  return labels[reading.value.state] ? `${labels[reading.value.state]} · ${reading.value.position}/${reading.value.total}` : '';
+});
+const reader = createReadingPlayer({
+  request: data => call('tts', data), cancel: requestId => call('tts-cancel', { requestId }),
+  createAudio: url => new Audio(url),
+  createUrl: bytes => URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })),
+  revokeUrl: url => URL.revokeObjectURL(url),
+  update: value => { reading.value = { ...reading.value, error: '', ...value }; },
+});
+function startReading(topic = null) {
+  if (!readingConsent.value || !report.value) return;
+  player.value?.pause();
+  reader.start(readingChunks(report.value, topic), { id: record.value.id, reportId: version.value, topic });
+}
+function videoStarted(event) { reader.stop(); playbackUpdate(event); }
+watch(version, () => reader.stop());
 const source = computed(() => { const filePath = record.value?.path || props.video.path; return filePath ? `media://local${filePath.split('/').map(encodeURIComponent).join('/')}` : ''; });
 async function call(action, data) { const result = await window.electronAPI.ai(action, data); if (!result.success) { const error = new Error(result.error); error.recoverable = result.recoverable; throw error; } return result.data; }
 function assign(value) { recoverable.value = !!value.pendingAnalysis && value.pendingAnalysis.canReparse !== false && !!value.pendingAnalysis.response?.choices?.[0]?.message?.content?.trim(); record.value = value; version.value = value.reports.filter(item => item.schemaVersion === 2).at(-1)?.id || ''; }
@@ -169,9 +204,19 @@ async function exportNotes() { try { if (await call('export', { id: record.value
 async function saveFrame(index, image) { try { await call('frame', { id: record.value.id, reportId: version.value, index, image }); } catch (e) { error.value = `画面保存失败：${e.message}`; } }
 const unsubscribe = window.electronAPI.onAIProgress(update => { if (!busy.value) return; if (typeof update === 'string') task.value = applyProgress(task.value, { message: update }); else task.value = applyProgress(task.value, update); });
 onMounted(async () => { try { try { await refreshAISettings(window.electronAPI); settingsError.value = previewPlan.value ? '' : '请在设置中选择支持的模型并保存配置。'; } catch (e) { settingsError.value = e.message; } assign(await call('open', props.video.id ? { id: props.video.id } : { filePath: props.video.path })); } catch (e) { error.value = e.message; } finally { loading.value = false; } });
-onBeforeUnmount(() => { mounted = false; unsubscribe(); if (busy.value) window.electronAPI.ai('cancel'); });
+onBeforeUnmount(() => { mounted = false; reader.stop(); unsubscribe(); if (busy.value) window.electronAPI.ai('cancel'); });
 </script>
 <style scoped>
+.reading-toolbar { margin: 12px 0 20px; padding: 12px; background: #f3f7f4; border: 1px solid #dbe7de; border-radius: 8px; }
+.reading-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reading-controls label { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.reading-controls span { color: #53705c; font-size: 12px; }
+.reading-consent { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: #64748b; margin-top: 10px; line-height: 1.6; }
+.reading-consent input { margin-top: 3px; }
+.reading-error { color: #b91c1c; font-size: 12px; margin: 8px 0 0; }
+.read-topic { margin-left: auto; flex-shrink: 0; font-size: 12px; }
+.reading-current { background: #f0f7f2; outline: 2px solid #b9d7c2; outline-offset: 5px; border-radius: 4px; }
+
 .notes-overlay { position: fixed; inset: 0; background: #0f172acc; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .notes-dialog { position: relative; background: #fff; border-radius: 14px; width: 1280px; max-width: 100%; height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 90px #0005; }
 .video-title { margin-bottom: 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; line-height: 20px; color: #64748b; } .notes-dialog > .close-button { position: absolute; top: 12px; right: 12px; z-index: 5; flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: #64748b; font-size: 22px; line-height: 1; border-radius: 5px; } .notes-dialog > .close-button:hover { background: #f1f5f9; color: #334155; } .notes-dialog > .close-button:focus-visible { outline: 2px solid #25815a; outline-offset: 2px; }

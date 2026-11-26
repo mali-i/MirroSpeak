@@ -1,3 +1,5 @@
+import { readingChunks } from '../tts/text.mjs';
+import { synthesize } from '../tts/service.mjs';
 import { isSecureStorageAvailable } from './storage-security.mjs';
 import { app, ipcMain, dialog, safeStorage, shell } from 'electron';
 import Store from 'electron-store';
@@ -32,6 +34,7 @@ export function movedVideo(sourcePath, targetPath) {
   }
 }
 let active = null;
+const speechTasks = new Map();
 
 export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fetch: fetchImpl }) {
   if (fetchImpl) setRequestTransport(fetchImpl);
@@ -55,9 +58,36 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
       return record;
     });
   };
+  handle('tts-cancel', ({ requestId }, event) => {
+    const task = speechTasks.get(event.sender);
+    if (task?.requestId === requestId) task.controller.abort();
+  });
+  handle('tts', async ({ id, reportId, topic = null, index, requestId }, event) => {
+    if (typeof requestId !== 'string' || requestId.length > 100 || !requestId) throw new Error('朗读任务无效。');
+    if (speechTasks.has(event.sender)) throw new Error('请等待上一段朗读任务停止后重试。');
+    const report = records().find(item => item.id === id)?.reports.find(item => item.id === reportId);
+    if (!report || report.schemaVersion !== 2) throw new Error('笔记版本不存在。');
+    const chunks = readingChunks(report, topic);
+    if (!Number.isInteger(index) || !chunks[index]) throw new Error('朗读段落不存在。');
+    const apiKey = key(), baseUrl = configuredBaseUrl();
+    const controller = new AbortController();
+    speechTasks.set(event.sender, { requestId, controller });
+    const destroyed = () => controller.abort();
+    event.sender.once?.('destroyed', destroyed);
+    const timer = setTimeout(() => controller.abort(new DOMException('朗读超时', 'TimeoutError')), 90000);
+    try {
+      return await synthesize({ text: chunks[index].text, apiKey, baseUrl,
+        cacheDir: path.join(app.getPath('userData'), 'tts-cache'), signal: controller.signal,
+        fetchAudio: fetchImpl || ((...args) => globalThis.fetch(...args)) });
+    } finally {
+      clearTimeout(timer);
+      event.sender.removeListener?.('destroyed', destroyed);
+      speechTasks.delete(event.sender);
+    }
+  });
   handle('settings', () => publicSettings());
   handle('configure', ({ apiKey, model, baseUrl = DEFAULT_BASE_URL }) => {
-    if (active) throw new Error('请等待当前任务结束后再修改配置。');
+    if (active || speechTasks.size) throw new Error('请等待当前任务结束后再修改配置。');
     getModelProfile(model);
     if (apiKey !== undefined && typeof apiKey !== 'string') throw new Error('API Key 格式无效。');
     apiKey = apiKey?.trim();
@@ -75,7 +105,7 @@ export function registerAI({ withDirectoryAccess, getDirectoryAccessForPath, fet
     return publicSettings();
   });
   handle('forget-key', () => {
-    if (active) throw new Error('请先取消当前任务。');
+    if (active || speechTasks.size) throw new Error('请先取消当前任务。');
     database.delete('encryptedKey');
   });
   handle('test', async () => {

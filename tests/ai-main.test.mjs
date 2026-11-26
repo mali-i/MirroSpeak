@@ -1,5 +1,6 @@
 const sse = value => new Response(`data: ${JSON.stringify(value)}\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
 import test from 'node:test';
+import { wavFixture } from './helpers/wav.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -10,11 +11,11 @@ import { build } from 'esbuild';
 test('IPC lifecycle: private key, report versions, edits, relocation, and provider configuration', async () => {
   const dir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'videolog-ipc-')));
   const oldFetch = globalThis.fetch;
-  globalThis.__aiTest = { handlers: new Map(), values: {}, chosen: null };
+  globalThis.__aiTest = { handlers: new Map(), values: {}, chosen: null, cacheDir: dir };
   const electron = `
     const state = globalThis.__aiTest;
     export const ipcMain = { handle: (name, fn) => state.handlers.set(name, fn) };
-    export const app = {};
+    export const app = { getPath: () => state.cacheDir };
     export const shell = { openExternal: async url => { state.openedUrl = url; } };
     export const dialog = { showOpenDialog: async () => ({ canceled: false, filePaths: [state.chosen] }) };
     export const safeStorage = { isEncryptionAvailable: () => state.storageAvailable !== false, getSelectedStorageBackend: () => 'gnome_libsecret', encryptString: text => Buffer.from('encrypted:' + text), decryptString: bytes => bytes.toString().slice(10) };
@@ -32,7 +33,8 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     const { registerAI, movedVideo } = await import(path.join(dir, 'main.mjs'));
     registerAI({ withDirectoryAccess: async (_path, fn) => fn(), getDirectoryAccessForPath: target => target.startsWith(dir) ? { path: dir } : null });
     const events = [];
-    const invoke = async (action, data) => globalThis.__aiTest.handlers.get(`ai:${action}`)({ sender: { isDestroyed: () => false, send(_channel, event) { events.push(event); } } }, data);
+    const sender = { isDestroyed: () => false, send(_channel, event) { events.push(event); } };
+    const invoke = async (action, data) => globalThis.__aiTest.handlers.get(`ai:${action}`)({ sender }, data);
     globalThis.__aiTest.values.encryptedKey = Buffer.from('encrypted:old-provider-key').toString('base64');
     globalThis.__aiTest.values.baseUrl = 'https://old-provider.example';
     assert.equal((await invoke('settings')).data.hasKey, false);
@@ -80,6 +82,32 @@ test('IPC lifecycle: private key, report versions, edits, relocation, and provid
     assert(events.every(event => !event.plan.steps.some(step => step.id === 'transcribe')));
     assert(events.at(-1).finishedAt >= events[0].startedAt);
     const first = analyzed.data.reports[0];
+    const analysisFetch = globalThis.fetch;
+    let speechCalls = 0;
+    const wav = wavFixture();
+    const speechInput = { id: original.id, reportId: first.id, topic: 0, index: 0, requestId: 'read-one' };
+    globalThis.fetch = async (_url, options) => {
+      if (options.method === 'POST') { speechCalls++; return Response.json({ output: { audio: { url: 'https://audio.example/file.wav' } } }); }
+      assert.equal(options.headers, undefined);
+      return new Response(wav);
+    };
+    assert.equal((await invoke('tts', { ...speechInput, reportId: 'missing' })).success, false);
+    assert.equal(speechCalls, 0);
+    const spoken = await invoke('tts', speechInput);
+    assert.equal(spoken.success, true, spoken.error);
+    assert.equal(spoken.data.cached, false);
+    assert.equal((await invoke('tts', speechInput)).data.cached, true);
+    assert.equal(speechCalls, 1);
+    globalThis.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    });
+    const pendingSpeech = invoke('tts', { ...speechInput, topic: null, requestId: 'cancel-me' });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal((await invoke('forget-key')).success, false);
+    await invoke('tts-cancel', { requestId: 'cancel-me' });
+    assert.equal((await pendingSpeech).success, false);
+    globalThis.fetch = analysisFetch;
+
     await invoke('save', { id: original.id, reportId: first.id, notes: ['用户修改过的内容'] });
     const moved = path.join(dir, 'renamed.mp4'); await fs.rename(filePath, moved); movedVideo(filePath, moved);
     const second = await invoke('analyze', { filePath: moved, duration: 10 });
