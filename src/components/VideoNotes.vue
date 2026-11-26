@@ -225,14 +225,14 @@ button.read-topic:hover:not(:disabled) { color: #24583f; background: #e8eeea; }
 .report-pane > .toolbar:first-child { padding-right: 24px; }
 .workspace { display: grid; grid-template-columns: minmax(280px, 44%) minmax(0, 1fr); flex: 1; min-height: 0; }.player-pane, .report-pane { overflow-y: auto; padding: 24px; }.player-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: #f5f7fa; }.player-stage { flex: 0 0 auto; }.player-stage > video { display: block; width: 100%; max-height: 45vh; background: #111; border-radius: 8px; }.player-details { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }.player-pane p, small { color: #64748b; line-height: 1.7; font-size: 13px; }.consent { padding: 18px; margin-top: 24px; background: #fff; border: 1px solid #dce7e1; border-radius: 10px; }.consent label { display: block; margin: 16px 0; font-size: 14px; }
 button, select { padding: 8px 12px; border: 1px solid #d4dfda; border-radius: 6px; background: #edf5ef; color: #24583f; cursor: pointer; }button:disabled { opacity: .45; cursor: default; }.toolbar { display: flex; flex-wrap: wrap; gap: 8px; }select { max-width: 100%; }.prose { white-space: pre-wrap; line-height: 1.85; }h2 { font-size: 24px; }h3 { margin-top: 30px; }h4 { margin: 10px 0; }article { border-bottom: 1px solid #eef2f7; padding: 14px 0; }.timestamp { background: transparent; color: #25815a; border: 0; padding: 0; font-size: 13px; }.frame { display: block; padding: 0; border: 0; width: min(100%, 320px); }textarea { width: 100%; padding: 12px; line-height: 1.8; border: 1px solid #b9d2c4; border-radius: 6px; font: inherit; }.error { color: #b42318 !important; }.empty, .missing { padding: 32px 0; color: #64748b; line-height: 1.8; }.missing button { display: block; margin-top: 12px; }
-.report-pane { min-width: 0; border-left: 1px solid #edf0ee; scrollbar-width: thin; }
-.report-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-right: 22px; padding-bottom: 16px; border-bottom: 1px solid #edf0ee; }
+.report-pane { min-width: 0; padding-top: 12px; border-left: 1px solid #edf0ee; scrollbar-width: thin; }
+.report-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding-right: 22px; padding-bottom: 8px; border-bottom: 1px solid #edf0ee; }
 .version-control { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font-size: 11px; color: #94a3b8; }
 .report-tools select { min-width: 0; max-width: 230px; padding: 5px 6px; background: transparent; border-color: transparent; color: #64748b; font-size: 11px; }
 .report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; }
 .report-actions button { padding: 5px 7px; border: 0; background: transparent; font-size: 12px; color: #64748b; }
 .report-actions button:hover:not(:disabled) { background: #f1f5f3; color: #24583f; }
-.report-intro { padding: 24px 0 20px; }
+.report-intro { padding: 14px 0 16px; }
 .report-intro h2 { margin: 0 0 14px; font-size: 23px; font-weight: 600; line-height: 1.45; letter-spacing: -.4px; color: #243b30; overflow-wrap: anywhere; }
 .report-summary { margin: 0 0 16px; font-size: 14px; color: #475569; }
 .report-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: #94a3b8; }
@@ -303,5 +303,5 @@ button.relink-button:hover:not(:disabled) { color: #24583f; background: #e8eeea;
 .video-missing p { margin: 8px 0 16px; }
 .video-missing .relink-recovery { display: inline-flex; margin: 0; font-size: 13px; }
 @media(max-width: 800px) { .video-title { padding-right: 28px; } .notes-overlay { padding: 8px; }.report-pane > .toolbar:first-child { padding-right: 24px; }
-.workspace { display: block; overflow-y: auto; }.player-pane, .report-pane { overflow: visible; padding: 16px; }.player-details { overflow: visible; flex: none; } }
+.workspace { display: block; overflow-y: auto; }.player-pane, .report-pane { overflow: visible; padding: 16px; }.report-pane { padding-top: 12px; }.player-details { overflow: visible; flex: none; } }
 </style>
