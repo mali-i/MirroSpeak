@@ -2,7 +2,7 @@
   <div class="gallery">
     <div class="gallery-info">
       <div class="gallery-heading">
-        <span class="gallery-title">Recorded Videos</span>
+        <span class="gallery-title">Recorded Videos ({{ videos.length }})</span>
       </div>
       <div class="view-switcher" aria-label="Gallery view">
         <button

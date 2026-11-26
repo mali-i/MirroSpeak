@@ -271,14 +271,12 @@ ipcMain.handle('video:list', async (event, directory) => {
   try {
     return await withDirectoryAccess(directory, async () => {
       if (!fs.existsSync(directory)) return [];
-      const files = await fs.promises.readdir(directory);
-      const videoFiles = files.filter(file => {
-        // Filter out hidden files (starting with . or ._) and only include video files
-        if (file.startsWith('.') || file.startsWith('._')) return false;
-        return file.endsWith('.webm') || file.endsWith('.mp4');
-      });
+      const entries = await fs.promises.readdir(directory, { withFileTypes: true });
+      const videoFiles = entries.filter(entry =>
+        entry.isFile() && !entry.name.startsWith('.') && /\.(webm|mp4)$/i.test(entry.name)
+      );
 
-      const videos = await Promise.all(videoFiles.map(async (file) => {
+      const videos = await Promise.all(videoFiles.map(async ({ name: file }) => {
           const filePath = path.join(directory, file);
           const stats = await fs.promises.stat(filePath);
           return {
